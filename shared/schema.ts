@@ -5,6 +5,7 @@ import { z } from "zod";
 export const episodeStatus = pgEnum('episode_status', ['draft', 'published']);
 export const episodeType = pgEnum('episode_type', ['full', 'trailer', 'bonus']);
 export const templateType = pgEnum('template_type', ['intro', 'outro']);
+export const transcriptionStatus = pgEnum('transcription_status', ['pending', 'processing', 'completed', 'failed']);
 
 export const episodes = pgTable("episodes", {
   id: serial("id").primaryKey(),
@@ -21,7 +22,15 @@ export const episodes = pgTable("episodes", {
   hasOutro: boolean("has_outro").default(false).notNull(),
   status: episodeStatus("status").default('draft').notNull(),
   publishDate: timestamp("publish_date"),
-  createdAt: timestamp("created_at").defaultNow().notNull()
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  // New AI-related fields
+  transcript: text("transcript"),
+  transcriptionStatus: transcriptionStatus("transcription_status").default('pending'),
+  showNotes: text("show_notes"),
+  aiGeneratedTags: text("ai_generated_tags").array(),
+  aiGeneratedSummary: text("ai_generated_summary"),
+  introMusicUrl: text("intro_music_url"),
+  outroMusicUrl: text("outro_music_url")
 });
 
 export const templates = pgTable("templates", {
@@ -50,7 +59,15 @@ export const insertEpisodeSchema = createInsertSchema(episodes)
     hasIntro: true,
     hasOutro: true,
     status: true,
-    publishDate: true
+    publishDate: true,
+    // Add new fields to insert schema
+    transcript: true,
+    transcriptionStatus: true,
+    showNotes: true,
+    aiGeneratedTags: true,
+    aiGeneratedSummary: true,
+    introMusicUrl: true,
+    outroMusicUrl: true
   });
 
 export const insertTemplateSchema = createInsertSchema(templates)

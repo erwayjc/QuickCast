@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertEpisodeSchema } from "@shared/schema";
 import { generatePodcastFeed } from "./utils/feed";
+import { processEpisode } from "./utils/ai";
 
 const FEED_CONFIG = {
   title: process.env.PODCAST_TITLE || "My Podcast",
@@ -39,8 +40,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(400).json({ message: "Invalid episode data" });
       return;
     }
-    const episode = await storage.createEpisode(result.data);
-    res.json(episode);
+
+    try {
+      // Create the episode first
+      const episode = await storage.createEpisode(result.data);
+
+      // Start AI processing in the background
+      processEpisode(episode)
+        .then(async (aiData) => {
+          // Update the episode with AI-generated content
+          const updatedEpisode = await storage.updateEpisode(episode.id, aiData);
+          console.log('AI processing completed for episode:', episode.id);
+        })
+        .catch((error) => {
+          console.error('AI processing failed for episode:', episode.id, error);
+          storage.updateEpisode(episode.id, { transcriptionStatus: 'failed' });
+        });
+
+      res.json(episode);
+    } catch (error) {
+      console.error('Failed to create episode:', error);
+      res.status(500).json({ message: "Failed to create episode" });
+    }
   });
 
   app.patch("/api/episodes/:id/publish", async (req, res) => {
