@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/use-auth';
+import { Mic } from 'lucide-react';
 
 const authSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -52,51 +53,59 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <h1 className="text-2xl font-bold text-center">QuickCast</h1>
-          <p className="text-sm text-muted-foreground text-center">
-            Sign in to start creating podcasts
-          </p>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "signin" | "signup")}>
-            <TabsList className="grid w-full grid-cols-2 mb-8">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-4">
+      <div className="w-full max-w-md">
+        {/* Logo and App Name */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 mb-4">
+            <Mic className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-white">QuickCast</h1>
+          <p className="text-zinc-400 mt-2">Your podcasting journey starts here</p>
+        </div>
 
+        <Card className="backdrop-blur-xl bg-white/10 border-white/20">
+          <CardHeader className="space-y-1">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "signin" | "signup")}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Sign In</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </CardHeader>
+          <CardContent>
             {error && (
-              <Alert variant="destructive" className="mb-6">
+              <Alert variant="destructive" className="mb-6 bg-red-500/10 border-red-500/20 text-red-400">
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
 
-            <form onSubmit={form.handleSubmit(onSubmit)}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="space-y-4">
-                <div className="space-y-2">
+                <div>
                   <Input
                     type="email"
                     placeholder="Email"
+                    className="bg-white/5 border-white/10 text-white placeholder:text-zinc-400"
                     {...form.register('email')}
                   />
                   {form.formState.errors.email && (
-                    <p className="text-sm text-destructive">
+                    <p className="mt-1 text-sm text-red-400">
                       {form.formState.errors.email.message}
                     </p>
                   )}
                 </div>
 
-                <div className="space-y-2">
+                <div>
                   <Input
                     type="password"
                     placeholder="Password"
+                    className="bg-white/5 border-white/10 text-white placeholder:text-zinc-400"
                     {...form.register('password')}
                   />
                   {form.formState.errors.password && (
-                    <p className="text-sm text-destructive">
+                    <p className="mt-1 text-sm text-red-400">
                       {form.formState.errors.password.message}
                     </p>
                   )}
@@ -104,20 +113,20 @@ export default function AuthPage() {
 
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
                   disabled={isLoading}
                 >
-                  {activeTab === "signup" ? "Sign Up" : "Sign In"}
+                  {activeTab === "signup" ? "Create Account" : "Sign In"}
                 </Button>
               </div>
             </form>
 
             <div className="relative my-8">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border"></div>
+                <div className="w-full border-t border-zinc-700"></div>
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
+                <span className="bg-zinc-900 px-2 text-zinc-400">
                   Or continue with
                 </span>
               </div>
@@ -126,7 +135,7 @@ export default function AuthPage() {
             <Button
               type="button"
               variant="outline"
-              className="w-full"
+              className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white"
               disabled={isLoading}
               onClick={() => {
                 setError(null);
@@ -153,9 +162,9 @@ export default function AuthPage() {
               </svg>
               Continue with Google
             </Button>
-          </Tabs>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
