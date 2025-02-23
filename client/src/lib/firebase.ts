@@ -1,6 +1,5 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getDatabase } from "firebase/database";
 
 // Validate that all required environment variables are present
 const requiredEnvVars = [
@@ -21,18 +20,16 @@ const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: `${projectId}.firebaseapp.com`,
   projectId: projectId,
-  databaseURL: `https://${projectId}-default-rtdb.firebaseio.com`,
   storageBucket: `${projectId}.appspot.com`,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const database = getDatabase(app);
 const googleProvider = new GoogleAuthProvider();
 
 googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
 
-export { auth, database, googleProvider };
+export { auth, googleProvider };

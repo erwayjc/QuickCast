@@ -1,61 +1,86 @@
+import { pgTable, text, serial, timestamp, integer, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const episodeStatus = ['draft', 'published'] as const;
-export const episodeType = ['full', 'trailer', 'bonus'] as const;
-export const templateType = ['intro', 'outro'] as const;
-export const transcriptionStatus = ['pending', 'processing', 'completed', 'failed'] as const;
+export const episodeStatus = pgEnum('episode_status', ['draft', 'published']);
+export const episodeType = pgEnum('episode_type', ['full', 'trailer', 'bonus']);
+export const templateType = pgEnum('template_type', ['intro', 'outro']);
+export const transcriptionStatus = pgEnum('transcription_status', ['pending', 'processing', 'completed', 'failed']);
 
-export const episodeSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string().default('Episode description not provided'),
-  audioUrl: z.string(),
-  duration: z.number(),
-  episodeNumber: z.number().optional(),
-  seasonNumber: z.number().optional(),
-  episodeType: z.enum(episodeType).default('full'),
-  artworkUrl: z.string().optional(),
-  keywords: z.array(z.string()).optional(),
-  hasIntro: z.boolean().default(false),
-  hasOutro: z.boolean().default(false),
-  status: z.enum(episodeStatus).default('draft'),
-  publishDate: z.string().optional(),
-  createdAt: z.string(),
-  transcript: z.string().optional(),
-  transcriptionStatus: z.enum(transcriptionStatus).default('pending'),
-  showNotes: z.string().optional(),
-  aiGeneratedTags: z.array(z.string()).optional(),
-  aiGeneratedSummary: z.string().optional(),
-  introMusicUrl: z.string().optional(),
-  outroMusicUrl: z.string().optional()
+export const episodes = pgTable("episodes", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").default('Episode description not provided').notNull(),
+  audioUrl: text("audio_url").notNull(),
+  duration: integer("duration").notNull(),
+  episodeNumber: integer("episode_number"),
+  seasonNumber: integer("season_number"),
+  episodeType: episodeType("episode_type").default('full').notNull(),
+  artworkUrl: text("artwork_url"),
+  keywords: text("keywords").array(),
+  hasIntro: boolean("has_intro").default(false).notNull(),
+  hasOutro: boolean("has_outro").default(false).notNull(),
+  status: episodeStatus("status").default('draft').notNull(),
+  publishDate: timestamp("publish_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  // AI-related fields
+  transcript: text("transcript"),
+  transcriptionStatus: transcriptionStatus("transcription_status").default('pending'),
+  showNotes: text("show_notes"),
+  aiGeneratedTags: text("ai_generated_tags").array(),
+  aiGeneratedSummary: text("ai_generated_summary"),
+  introMusicUrl: text("intro_music_url"),
+  outroMusicUrl: text("outro_music_url")
 });
 
-export const templateSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  type: z.enum(templateType),
-  script: z.string(),
-  backgroundMusic: z.string(),
-  musicVolume: z.number().default(50),
-  duration: z.number(),
-  createdAt: z.string(),
-  updatedAt: z.string()
+export const templates = pgTable("templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: templateType("type").notNull(),
+  script: text("script").notNull(),
+  backgroundMusic: text("background_music").notNull(),
+  musicVolume: integer("music_volume").default(50).notNull(),
+  duration: integer("duration").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
 });
 
-export const insertEpisodeSchema = episodeSchema.omit({ 
-  id: true,
-  createdAt: true,
-  status: true,
-  transcriptionStatus: true
-});
+export const insertEpisodeSchema = createInsertSchema(episodes)
+  .pick({
+    title: true,
+    description: true,
+    audioUrl: true,
+    duration: true,
+    episodeNumber: true,
+    seasonNumber: true,
+    episodeType: true,
+    artworkUrl: true,
+    keywords: true,
+    hasIntro: true,
+    hasOutro: true,
+    status: true,
+    publishDate: true,
+    // Add new fields to insert schema
+    transcript: true,
+    transcriptionStatus: true,
+    showNotes: true,
+    aiGeneratedTags: true,
+    aiGeneratedSummary: true,
+    introMusicUrl: true,
+    outroMusicUrl: true
+  });
 
-export const insertTemplateSchema = templateSchema.omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
+export const insertTemplateSchema = createInsertSchema(templates)
+  .pick({
+    name: true,
+    type: true,
+    script: true,
+    backgroundMusic: true,
+    musicVolume: true,
+    duration: true
+  });
 
-export type Episode = z.infer<typeof episodeSchema>;
 export type InsertEpisode = z.infer<typeof insertEpisodeSchema>;
-export type Template = z.infer<typeof templateSchema>;
+export type Episode = typeof episodes.$inferSelect;
 export type InsertTemplate = z.infer<typeof insertTemplateSchema>;
+export type Template = typeof templates.$inferSelect;
