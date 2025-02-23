@@ -4,7 +4,6 @@ import https from "https";
 import { Readable } from "stream";
 import { URL } from "url";
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function transcribeAudio(audioUrl: string): Promise<string> {
@@ -12,7 +11,7 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
     // Get the full URL if it's a relative path
     const fullUrl = audioUrl.startsWith('http') 
       ? audioUrl 
-      : new URL(audioUrl, `http://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`).toString();
+      : `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co${audioUrl}`;
 
     console.log('Attempting to transcribe audio from URL:', fullUrl);
 

@@ -29,15 +29,17 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
       toast({
-        title: "Success",
-        description: "Started transcription process"
+        title: "Transcription Started",
+        description: "Your episode is being transcribed. This may take a few minutes.",
+        duration: 5000,
       });
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to start transcription",
-        variant: "destructive"
+        title: "Transcription Failed",
+        description: "Unable to start transcription. Please try again later.",
+        variant: "destructive",
+        duration: 5000,
       });
     }
   });
@@ -80,7 +82,12 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
                 )}
                 {episode.transcriptionStatus === 'processing' && (
                   <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full animate-pulse">
-                    Processing Transcript
+                    Transcribing...
+                  </span>
+                )}
+                {episode.transcriptionStatus === 'completed' && (
+                  <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">
+                    Transcribed
                   </span>
                 )}
               </div>
@@ -105,7 +112,7 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
                   className="mb-2 w-full mt-4"
                 >
                   <FileText className="h-4 w-4 mr-2" />
-                  Create episode transcript?
+                  {transcribeEpisode.isPending ? 'Starting Transcription...' : 'Transcribe with AI'}
                 </Button>
               )}
 
