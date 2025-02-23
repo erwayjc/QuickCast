@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 
 interface AudioWaveformProps {
   analyserData: Uint8Array;
@@ -18,14 +18,39 @@ export function AudioWaveform({
   isEditable = false 
 }: AudioWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDragging, setIsDragging] = useState<'start' | 'end' | null>(null);
 
   const drawWaveform = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    ctx.fillStyle = '#FFFFFF';
+    // Clear canvas with dark background
+    ctx.fillStyle = '#18181B'; // zinc-900
     ctx.fillRect(0, 0, width, height);
 
+    // Draw grid lines
+    ctx.strokeStyle = '#3F3F46'; // zinc-700
+    ctx.lineWidth = 1;
+
+    // Vertical grid lines
+    for (let x = 0; x < width; x += 50) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+
+    // Horizontal grid lines
+    for (let y = 0; y < height; y += 25) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+
+    // Draw waveform
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#10B981'); // emerald-500
+    gradient.addColorStop(1, '#059669'); // emerald-600
+
     ctx.lineWidth = 2;
-    ctx.strokeStyle = '#FF4F4F';
+    ctx.strokeStyle = gradient;
     ctx.beginPath();
 
     const sliceWidth = width / analyserData.length;
@@ -53,13 +78,31 @@ export function AudioWaveform({
       const endX = (trimEnd / duration) * width;
 
       // Draw selected region
-      ctx.fillStyle = 'rgba(255, 79, 79, 0.2)';
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.1)'; // emerald-500 with opacity
       ctx.fillRect(startX, 0, endX - startX, height);
 
       // Draw trim markers
-      ctx.fillStyle = '#FF4F4F';
+      ctx.fillStyle = '#10B981'; // emerald-500
       ctx.fillRect(startX - 2, 0, 4, height);
       ctx.fillRect(endX - 2, 0, 4, height);
+
+      // Add draggable indicators
+      const handleHeight = 20;
+      ctx.fillStyle = '#fff';
+
+      // Start handle
+      ctx.beginPath();
+      ctx.moveTo(startX, height/2 - handleHeight/2);
+      ctx.lineTo(startX - 8, height/2);
+      ctx.lineTo(startX, height/2 + handleHeight/2);
+      ctx.fill();
+
+      // End handle
+      ctx.beginPath();
+      ctx.moveTo(endX, height/2 - handleHeight/2);
+      ctx.lineTo(endX + 8, height/2);
+      ctx.lineTo(endX, height/2 + handleHeight/2);
+      ctx.fill();
     }
   };
 
@@ -73,58 +116,13 @@ export function AudioWaveform({
     drawWaveform(ctx, canvas.width, canvas.height);
   }, [analyserData, trimStart, trimEnd, duration, isEditable]);
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isEditable || !onTrimChange) return;
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const timePosition = (x / canvas.width) * duration;
-
-    // Determine if we're closer to start or end marker
-    const startDistance = Math.abs(timePosition - trimStart);
-    const endDistance = Math.abs(timePosition - trimEnd);
-
-    if (startDistance < endDistance && startDistance < 1) {
-      setIsDragging('start');
-    } else if (endDistance < 1) {
-      setIsDragging('end');
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDragging || !isEditable || !onTrimChange) return;
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const timePosition = Math.max(0, Math.min((x / canvas.width) * duration, duration));
-
-    if (isDragging === 'start') {
-      onTrimChange(Math.min(timePosition, trimEnd - 0.1), trimEnd);
-    } else {
-      onTrimChange(trimStart, Math.max(timePosition, trimStart + 0.1));
-    }
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(null);
-  };
-
   return (
     <canvas 
       ref={canvasRef} 
-      className="w-full h-24 rounded-lg shadow-md bg-white cursor-ew-resize"
+      className="w-full h-40 rounded-xl"
       width={800}
-      height={100}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
+      height={200}
+      style={{ cursor: isEditable ? 'ew-resize' : 'default' }}
     />
   );
 }

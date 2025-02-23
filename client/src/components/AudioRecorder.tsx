@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Mic, Square, Scissors, Save, RotateCcw } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { 
+  Mic, 
+  Square, 
+  Save, 
+  RotateCcw,
+  Volume2,
+  Timer,
+  AlertCircle
+} from 'lucide-react';
 import { AudioWaveform } from './AudioWaveform';
 import { AudioRecorder as AudioRecorderUtil } from '@/lib/audio';
 import { useToast } from '@/hooks/use-toast';
@@ -63,7 +72,6 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
     setIsRecording(false);
     if (blob) {
       const audioDuration = await getDuration(blob);
-      // Get auto-detected trim points
       const { start, end, duration } = recorderRef.current.getTrimPoints();
       setTrimStart(start);
       setTrimEnd(end);
@@ -71,11 +79,10 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
       setIsEditing(true);
       setIsAutoTrimmed(true);
 
-      // Show feedback about auto-trimming
       if (duration && audioDuration) {
         const trimmedDuration = end - start;
         const savedTime = audioDuration - trimmedDuration;
-        if (savedTime > 0.5) { // Only show if we saved more than half a second
+        if (savedTime > 0.5) { 
           toast({
             title: "Auto-trimmed",
             description: `Removed ${savedTime.toFixed(1)} seconds of silence`,
@@ -154,58 +161,80 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
   }, [isRecording]);
 
   return (
-    <div className="flex flex-col items-center gap-6 p-6 bg-white rounded-xl shadow-lg">
-      <div className="w-full">
-        <AudioWaveform 
-          analyserData={analyserData}
-          duration={duration}
-          trimStart={trimStart}
-          trimEnd={trimEnd}
-          onTrimChange={isEditing ? handleTrimChange : undefined}
-          isEditable={isEditing}
-        />
-        {isEditing && isAutoTrimmed && (
-          <p className="text-sm text-muted-foreground mt-2 text-center">
-            Silence automatically removed. Drag markers to adjust.
-          </p>
-        )}
-      </div>
+    <Card className="bg-gradient-to-br from-zinc-900 to-zinc-800 p-8 rounded-2xl shadow-2xl">
+      <div className="flex flex-col gap-8">
+        <div className="flex items-center justify-between text-zinc-400">
+          <div className="flex items-center gap-2">
+            <Volume2 className="w-4 h-4" />
+            <span className="text-sm font-medium">
+              {isRecording ? 'Recording...' : 'Ready'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Timer className="w-4 h-4" />
+            <span className="font-mono text-sm">
+              {formatTime(duration)}
+            </span>
+          </div>
+        </div>
 
-      <div className="flex items-center gap-4">
-        {!isEditing ? (
-          <Button
-            onClick={isRecording ? stopRecording : startRecording}
-            size="lg"
-            className={`rounded-full w-16 h-16 ${
-              isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-[#FF4F4F] hover:bg-red-600'
-            }`}
-          >
-            {isRecording ? <Square className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-          </Button>
-        ) : (
-          <>
-            <Button
-              onClick={handleSaveTrim}
-              size="lg"
-              className="rounded-full w-16 h-16 bg-green-500 hover:bg-green-600"
-            >
-              <Save className="h-6 w-6" />
-            </Button>
-            <Button
-              onClick={handleReset}
-              size="lg"
-              variant="outline"
-              className="rounded-full w-16 h-16"
-            >
-              <RotateCcw className="h-6 w-6" />
-            </Button>
-          </>
-        )}
+        <div className="relative">
+          <AudioWaveform 
+            analyserData={analyserData}
+            duration={duration}
+            trimStart={trimStart}
+            trimEnd={trimEnd}
+            onTrimChange={isEditing ? handleTrimChange : undefined}
+            isEditable={isEditing}
+          />
+          {isEditing && isAutoTrimmed && (
+            <div className="absolute -bottom-6 left-0 right-0 flex items-center justify-center gap-2 text-amber-500">
+              <AlertCircle className="w-4 h-4" />
+              <span className="text-xs">Silence automatically removed. Adjust if needed.</span>
+            </div>
+          )}
+        </div>
 
-        <div className="text-xl font-mono">
-          {formatTime(duration)}
+        <div className="flex flex-col gap-4">
+          {!isEditing ? (
+            <div className="flex justify-center">
+              <Button
+                onClick={isRecording ? stopRecording : startRecording}
+                size="lg"
+                className={`rounded-full w-20 h-20 ${
+                  isRecording 
+                    ? 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20' 
+                    : 'bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20'
+                }`}
+              >
+                {isRecording ? (
+                  <Square className="h-8 w-8" />
+                ) : (
+                  <Mic className="h-8 w-8" />
+                )}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex justify-center gap-4">
+              <Button
+                onClick={handleSaveTrim}
+                size="lg"
+                className="rounded-full w-16 h-16 bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20"
+              >
+                <Save className="h-6 w-6" />
+              </Button>
+              <Button
+                onClick={handleReset}
+                size="lg"
+                variant="outline"
+                className="rounded-full w-16 h-16 border-zinc-700 hover:bg-zinc-700"
+              >
+                <RotateCcw className="h-6 w-6" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
