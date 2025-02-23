@@ -14,6 +14,11 @@ interface HeaderProps {
 export const Header: FC<HeaderProps> = ({ view, onViewChange }) => {
   const { user, signInWithGoogle, logout } = useAuth();
 
+  const handleSignIn = () => {
+    console.log('Sign in button clicked');
+    signInWithGoogle();
+  };
+
   return (
     <div className="h-16 border-b border-border bg-background flex items-center justify-between px-4">
       <div className="flex items-center flex-1 gap-4">
@@ -60,7 +65,7 @@ export const Header: FC<HeaderProps> = ({ view, onViewChange }) => {
             </Button>
           </>
         ) : (
-          <Button onClick={signInWithGoogle}>
+          <Button onClick={handleSignIn}>
             Sign in with Google
           </Button>
         )}
@@ -74,4 +79,4 @@ export const Header: FC<HeaderProps> = ({ view, onViewChange }) => {
       </div>
     </div>
   );
-}
+};

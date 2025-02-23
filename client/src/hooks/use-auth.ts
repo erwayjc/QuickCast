@@ -55,13 +55,32 @@ export function useAuth() {
 
   const signInWithGoogle = async () => {
     try {
-      console.log('Initiating Google sign in');
-      await signInWithRedirect(auth, googleProvider);
-    } catch (error) {
+      console.log('Initiating Google sign in...');
+      console.log('Auth state before sign in:', auth.currentUser);
+      console.log('Provider:', googleProvider);
+
+      await signInWithRedirect(auth, googleProvider).catch(error => {
+        throw error; // Re-throw to be caught by the outer catch
+      });
+
+      console.log('Sign in redirect initiated successfully');
+    } catch (error: any) {
       console.error("Sign in error:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+
+      const errorMessage = 
+        error.code === 'auth/configuration-not-found' 
+          ? 'Firebase configuration error. Please check your Firebase setup.'
+          : error.code === 'auth/popup-blocked'
+          ? 'Popup was blocked. Please allow popups for this site.'
+          : error.code === 'auth/cancelled-popup-request'
+          ? 'Authentication cancelled. Please try again.'
+          : `Failed to initiate sign in: ${error.message}`;
+
       toast({
         title: "Error",
-        description: "Failed to initiate sign in with Google. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
