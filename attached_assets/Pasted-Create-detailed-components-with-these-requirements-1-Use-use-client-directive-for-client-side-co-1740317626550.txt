@@ -1,0 +1,151 @@
+Create detailed components with these requirements:
+1. Use 'use client' directive for client-side components
+2. Style with Tailwind CSS utility classes for responsive design
+3. Use Lucide React for icons (from lucide-react package). Do NOT use other UI libraries unless requested
+4. Use stock photos from picsum.photos where appropriate, only valid URLs you know exist
+5. Configure next.config.js image remotePatterns to enable stock photos from picsum.photos
+6. Create root layout.tsx page that wraps necessary navigation items to all pages
+7. MUST implement the navigation elements items in their rightful place i.e. Left sidebar, Top header
+8. Accurately implement necessary grid layouts
+9. Follow proper import practices:
+   - Use @/ path aliases
+   - Keep component imports organized
+   - Update current src/app/page.tsx with new comprehensive code
+   - Don't forget root route (page.tsx) handling
+   - You MUST complete the entire prompt before stopping
+
+Project Management Dashboard with File Listing Interface
+</summary_title>
+
+<image_analysis>
+
+1. Navigation Elements:
+- Left sidebar with: Projects, Quick recordings, Learn Descript, AI speakers, Templates
+- Workspaces section with: Private workspace, Joel's workspace
+- Top navigation with: Recent, Downloaded, Owned by me, Shared with me
+- Search bar in header
+
+
+2. Layout Components:
+- Header height: ~60px
+- Left sidebar width: ~240px
+- Main content area: Flexible width
+- Table layout for project listing
+- Padding: 16px between elements
+
+
+3. Content Sections:
+- Project list table with columns:
+  - Name (with icon)
+  - Duration
+  - Size
+  - Owner
+  - Created
+  - Last Viewed
+- Status indicators and metadata
+- File type icons and thumbnails
+
+
+4. Interactive Controls:
+- New Project button
+- Invite button
+- Search projects input
+- Grid/List view toggle
+- Sort controls
+- Action menu (three dots)
+
+
+5. Colors:
+- Background: #F5F5F5
+- Text: #333333
+- Accent: #6B4EFF
+- Secondary: #666666
+- Border: #E5E5E5
+
+
+6. Grid/Layout Structure:
+- 12-column grid system
+- Table layout for content
+- Responsive containers
+- Fixed sidebar width
+- Flexible content width
+</image_analysis>
+
+<development_planning>
+
+1. Project Structure:
+```
+src/
+├── components/
+│   ├── layout/
+│   │   ├── Header
+│   │   ├── Sidebar
+│   │   └── ProjectList
+│   ├── features/
+│   │   ├── Search
+│   │   ├── FileManager
+│   │   └── WorkspaceSelector
+│   └── shared/
+├── assets/
+├── styles/
+├── hooks/
+└── utils/
+```
+
+
+2. Key Features:
+- File listing and management
+- Search functionality
+- Workspace switching
+- Project creation
+- File metadata display
+- Sort and filter capabilities
+
+
+3. State Management:
+```typescript
+interface AppState {
+├── projects: {
+│   ├── items: Project[]
+│   ├── loading: boolean
+│   ├── filters: FilterOptions
+│   └── sort: SortOptions
+├── workspace: {
+│   ├── current: Workspace
+│   ├── available: Workspace[]
+│   └── permissions: Permission[]
+├── }
+}
+```
+
+
+4. Routes:
+```typescript
+const routes = [
+├── '/projects',
+├── '/workspace/:id/*',
+├── '/recordings/*',
+└── '/templates/*'
+]
+```
+
+
+5. Component Architecture:
+- ProjectList (main container)
+- ProjectItem (list item)
+- WorkspaceSelector
+- SearchBar
+- NavigationSidebar
+- ActionButtons
+
+
+6. Responsive Breakpoints:
+```scss
+$breakpoints: (
+├── 'sm': '640px',
+├── 'md': '768px',
+├── 'lg': '1024px',
+└── 'xl': '1280px'
+);
+```
+</development_planning>
