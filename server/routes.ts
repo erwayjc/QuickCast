@@ -155,18 +155,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
+      console.log('Starting transcription process for episode:', episode.id);
+
       // Update episode status to show processing
       await storage.updateEpisode(episode.id, { transcriptionStatus: 'processing' });
 
       // Start processing in the background
       processEpisode(episode)
         .then(async (aiData) => {
-          await storage.updateEpisode(episode.id, aiData);
           console.log('AI processing completed for episode:', episode.id);
+          await storage.updateEpisode(episode.id, {
+            ...aiData,
+            transcriptionStatus: 'completed'
+          });
         })
         .catch((error) => {
           console.error('AI processing failed for episode:', episode.id, error);
-          storage.updateEpisode(episode.id, { transcriptionStatus: 'failed' });
+          storage.updateEpisode(episode.id, { 
+            transcriptionStatus: 'failed',
+            transcript: null 
+          });
         });
 
       res.json({ message: "Transcription started" });

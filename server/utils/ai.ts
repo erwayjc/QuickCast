@@ -12,7 +12,7 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
     // Get the full URL if it's a relative path
     const fullUrl = audioUrl.startsWith('http') 
       ? audioUrl 
-      : `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co${audioUrl}`;
+      : `${process.env.REPL_URL}${audioUrl}`;
 
     console.log('Starting transcription for URL:', fullUrl);
 
@@ -43,6 +43,7 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
       const transcription = await openai.audio.transcriptions.create({
         file: fs.createReadStream(tempFilePath),
         model: "whisper-1",
+        response_format: "text"
       });
 
       console.log('Transcription completed successfully');
