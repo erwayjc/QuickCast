@@ -8,7 +8,9 @@ import {
   RotateCcw,
   Volume2,
   Timer,
-  AlertCircle
+  AlertCircle,
+  Play,
+  Pause
 } from 'lucide-react';
 import { AudioWaveform } from './AudioWaveform';
 import { AudioRecorder as AudioRecorderUtil } from '@/lib/audio';
@@ -26,6 +28,8 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
   const [isAutoTrimmed, setIsAutoTrimmed] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioPreview, setAudioPreview] = useState<HTMLAudioElement | null>(null);
   const recorderRef = useRef<AudioRecorderUtil | null>(null);
   const animationFrameRef = useRef<number>();
   const { toast } = useToast();
@@ -35,6 +39,10 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (audioPreview) {
+        audioPreview.pause();
+        audioPreview.remove();
       }
     };
   }, []);
@@ -55,6 +63,12 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
       setDuration(0);
       setIsEditing(false);
       setIsAutoTrimmed(false);
+      setIsPlaying(false);
+      if (audioPreview) {
+        audioPreview.pause();
+        audioPreview.remove();
+        setAudioPreview(null);
+      }
       updateAnalyser();
     } else {
       toast({
@@ -79,6 +93,11 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
       setIsEditing(true);
       setIsAutoTrimmed(true);
 
+      // Create audio preview
+      const audio = new Audio(URL.createObjectURL(blob));
+      audio.addEventListener('ended', () => setIsPlaying(false));
+      setAudioPreview(audio);
+
       if (duration && audioDuration) {
         const trimmedDuration = end - start;
         const savedTime = audioDuration - trimmedDuration;
@@ -88,6 +107,30 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
             description: `Removed ${savedTime.toFixed(1)} seconds of silence`,
           });
         }
+      }
+    }
+  };
+
+  const togglePlayback = () => {
+    if (!audioPreview) return;
+
+    if (isPlaying) {
+      audioPreview.pause();
+      setIsPlaying(false);
+    } else {
+      audioPreview.currentTime = trimStart;
+      const playPromise = audioPreview.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          setIsPlaying(true);
+        }).catch(() => {
+          setIsPlaying(false);
+          toast({
+            title: "Error",
+            description: "Failed to play the recording",
+            variant: "destructive"
+          });
+        });
       }
     }
   };
@@ -148,6 +191,12 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
     setAnalyserData(new Uint8Array());
     setDuration(0);
     setIsAutoTrimmed(false);
+    if (audioPreview) {
+      audioPreview.pause();
+      audioPreview.remove();
+      setAudioPreview(null);
+    }
+    setIsPlaying(false);
   };
 
   useEffect(() => {
@@ -216,6 +265,17 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
             </div>
           ) : (
             <div className="flex justify-center gap-4">
+              <Button
+                onClick={togglePlayback}
+                size="lg"
+                className="rounded-full w-16 h-16 bg-blue-500 hover:bg-blue-600 shadow-lg shadow-blue-500/20"
+              >
+                {isPlaying ? (
+                  <Pause className="h-6 w-6" />
+                ) : (
+                  <Play className="h-6 w-6 ml-1" />
+                )}
+              </Button>
               <Button
                 onClick={handleSaveTrim}
                 size="lg"
