@@ -1,4 +1,6 @@
 import { episodes, type Episode, type InsertEpisode } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   getEpisodes(): Promise<Episode[]>;
@@ -7,37 +9,27 @@ export interface IStorage {
   deleteEpisode(id: number): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private episodes: Map<number, Episode>;
-  private currentId: number;
-
-  constructor() {
-    this.episodes = new Map();
-    this.currentId = 1;
-  }
-
+export class DatabaseStorage implements IStorage {
   async getEpisodes(): Promise<Episode[]> {
-    return Array.from(this.episodes.values());
+    return await db.select().from(episodes).orderBy(episodes.createdAt);
   }
 
   async getEpisode(id: number): Promise<Episode | undefined> {
-    return this.episodes.get(id);
+    const [episode] = await db.select().from(episodes).where(eq(episodes.id, id));
+    return episode;
   }
 
   async createEpisode(insertEpisode: InsertEpisode): Promise<Episode> {
-    const id = this.currentId++;
-    const episode: Episode = {
-      ...insertEpisode,
-      id,
-      createdAt: new Date()
-    };
-    this.episodes.set(id, episode);
+    const [episode] = await db
+      .insert(episodes)
+      .values(insertEpisode)
+      .returning();
     return episode;
   }
 
   async deleteEpisode(id: number): Promise<void> {
-    this.episodes.delete(id);
+    await db.delete(episodes).where(eq(episodes.id, id));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
