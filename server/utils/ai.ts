@@ -11,7 +11,7 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
     // Get the full URL if it's a relative path
     const fullUrl = audioUrl.startsWith('http') 
       ? audioUrl 
-      : `${process.env.REPL_PROTOCOL}://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co${audioUrl}`;
+      : `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co${audioUrl}`;
 
     console.log('Attempting to transcribe audio from URL:', fullUrl);
 
