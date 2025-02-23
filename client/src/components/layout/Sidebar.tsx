@@ -60,20 +60,6 @@ export function Sidebar() {
           Templates
         </NavItem>
       </nav>
-
-      <div className="p-4 border-t border-sidebar-border">
-        <div className="space-y-2">
-          <h2 className="text-xs font-semibold text-sidebar-foreground/70">WORKSPACES</h2>
-          <div className="space-y-1">
-            <button className="w-full text-left px-2 py-1.5 text-sm rounded-md bg-sidebar-accent text-sidebar-accent-foreground">
-              Private workspace
-            </button>
-            <button className="w-full text-left px-2 py-1.5 text-sm rounded-md hover:bg-sidebar-accent/50 text-sidebar-foreground">
-              Joel's workspace
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
