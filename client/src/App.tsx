@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { MainLayout } from "@/components/layout/MainLayout";
 import Home from "@/pages/Home";
 import Auth from "@/pages/auth";
+import Templates from "@/pages/templates";
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -33,6 +34,13 @@ function Router() {
         <ProtectedRoute component={() => (
           <MainLayout>
             <Home />
+          </MainLayout>
+        )} />
+      </Route>
+      <Route path="/templates">
+        <ProtectedRoute component={() => (
+          <MainLayout>
+            <Templates />
           </MainLayout>
         )} />
       </Route>
