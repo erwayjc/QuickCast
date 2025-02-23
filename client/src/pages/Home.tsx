@@ -16,13 +16,28 @@ export default function Home() {
   const { toast } = useToast();
 
   const handleRecordingComplete = async (blob: Blob) => {
-    const audioUrl = URL.createObjectURL(blob);
-
     try {
+      // Create a FormData object to send the audio file
+      const formData = new FormData();
+      formData.append('audio', blob, 'episode.webm');
+
+      // First, upload the audio file
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload audio file');
+      }
+
+      const { audioUrl } = await uploadResponse.json();
+
+      // Then create the episode with the permanent URL
       const episode = await apiRequest('POST', '/api/episodes', {
         title: `Episode ${new Date().toLocaleDateString()}`,
         audioUrl,
-        duration: Math.floor(blob.size / 16000),
+        duration: Math.floor(blob.size / 16000), // Approximate duration
         hasIntro: false,
         hasOutro: false,
         status: 'draft'
@@ -36,6 +51,7 @@ export default function Home() {
         description: "Episode recorded successfully!",
       });
     } catch (err) {
+      console.error('Error saving episode:', err);
       toast({
         title: "Error",
         description: "Failed to save episode",
@@ -44,20 +60,48 @@ export default function Home() {
     }
   };
 
-  const handlePlay = (episode: Episode) => {
-    if (audioPlayer) {
-      audioPlayer.pause();
+  const handlePlay = async (episode: Episode) => {
+    try {
+      if (audioPlayer) {
+        audioPlayer.pause();
+      }
+
+      const player = new Audio(episode.audioUrl);
+
+      // Add error handling for audio loading
+      player.onerror = (e) => {
+        console.error('Audio playback error:', e);
+        toast({
+          title: "Error",
+          description: "Failed to play audio. The file might be missing or corrupted.",
+          variant: "destructive"
+        });
+        setIsPlaying(false);
+      };
+
+      // Wait for the audio to be loaded before playing
+      await new Promise((resolve, reject) => {
+        player.oncanplaythrough = resolve;
+        player.onerror = reject;
+        player.load();
+      });
+
+      player.addEventListener('play', () => setIsPlaying(true));
+      player.addEventListener('pause', () => setIsPlaying(false));
+      player.addEventListener('ended', () => setIsPlaying(false));
+
+      await player.play();
+      setAudioPlayer(player);
+      setCurrentEpisode(episode);
+      setIsPlaying(true);
+    } catch (err) {
+      console.error('Error playing audio:', err);
+      toast({
+        title: "Error",
+        description: "Failed to play audio",
+        variant: "destructive"
+      });
     }
-
-    const player = new Audio(episode.audioUrl);
-    player.addEventListener('play', () => setIsPlaying(true));
-    player.addEventListener('pause', () => setIsPlaying(false));
-    player.addEventListener('ended', () => setIsPlaying(false));
-
-    player.play();
-    setAudioPlayer(player);
-    setCurrentEpisode(episode);
-    setIsPlaying(true);
   };
 
   const handlePause = () => {

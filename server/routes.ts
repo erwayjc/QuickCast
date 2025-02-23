@@ -4,6 +4,10 @@ import { storage } from "./storage";
 import { insertEpisodeSchema } from "@shared/schema";
 import { generatePodcastFeed } from "./utils/feed";
 import { processEpisode } from "./utils/ai";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import express from 'express';
 
 const FEED_CONFIG = {
   title: process.env.PODCAST_TITLE || "My Podcast",
@@ -19,7 +23,46 @@ const FEED_CONFIG = {
   }
 };
 
+// Configure multer for audio file uploads
+const multerStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    // Create uploads directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ storage: multerStorage });
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Create uploads directory if it doesn't exist
+  const uploadDir = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+
+  // Serve uploaded files statically
+  app.use('/uploads', express.static(uploadDir));
+
+  // File upload endpoint
+  app.post('/api/upload', upload.single('audio'), (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    // Return the URL to access the file
+    const audioUrl = `/uploads/${req.file.filename}`;
+    res.json({ audioUrl });
+  });
+
   app.get("/api/episodes", async (_req, res) => {
     const episodes = await storage.getEpisodes();
     res.json(episodes);
