@@ -4,6 +4,7 @@ import { z } from "zod";
 
 export const episodeStatus = pgEnum('episode_status', ['draft', 'published']);
 export const episodeType = pgEnum('episode_type', ['full', 'trailer', 'bonus']);
+export const templateType = pgEnum('template_type', ['intro', 'outro']);
 
 export const episodes = pgTable("episodes", {
   id: serial("id").primaryKey(),
@@ -23,6 +24,18 @@ export const episodes = pgTable("episodes", {
   createdAt: timestamp("created_at").defaultNow().notNull()
 });
 
+export const templates = pgTable("templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: templateType("type").notNull(),
+  script: text("script").notNull(),
+  backgroundMusic: text("background_music").notNull(),
+  musicVolume: integer("music_volume").default(50).notNull(),
+  duration: integer("duration").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
 export const insertEpisodeSchema = createInsertSchema(episodes)
   .pick({
     title: true,
@@ -40,5 +53,17 @@ export const insertEpisodeSchema = createInsertSchema(episodes)
     publishDate: true
   });
 
+export const insertTemplateSchema = createInsertSchema(templates)
+  .pick({
+    name: true,
+    type: true,
+    script: true,
+    backgroundMusic: true,
+    musicVolume: true,
+    duration: true
+  });
+
 export type InsertEpisode = z.infer<typeof insertEpisodeSchema>;
 export type Episode = typeof episodes.$inferSelect;
+export type InsertTemplate = z.infer<typeof insertTemplateSchema>;
+export type Template = typeof templates.$inferSelect;
