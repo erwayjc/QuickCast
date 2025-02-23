@@ -17,6 +17,9 @@ for (const envVar of requiredEnvVars) {
 
 const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
 
+// Log current domain for verification
+console.log('Current domain:', window.location.origin);
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: `${projectId}.firebaseapp.com`,
@@ -43,14 +46,26 @@ try {
   auth = getAuth(app);
   googleProvider = new GoogleAuthProvider();
 
-  // Configure Google Provider
+  // Configure Google Provider with additional scopes if needed
   googleProvider.setCustomParameters({
     prompt: 'select_account'
   });
 
   console.log('Firebase initialized successfully');
-} catch (error) {
+  console.log('Auth domain:', auth.config.authDomain);
+} catch (error: any) {
   console.error('Error initializing Firebase:', error);
+  console.error('Error code:', error.code);
+  console.error('Error message:', error.message);
+
+  if (error.code === 'auth/configuration-not-found') {
+    console.error('Possible fixes:',
+      '1. Verify Firebase configuration values are correct',
+      '2. Ensure domain is added to authorized domains in Firebase Console',
+      '3. Check if Firebase project is properly set up'
+    );
+  }
+
   throw error;
 }
 
