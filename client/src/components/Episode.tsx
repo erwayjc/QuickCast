@@ -5,6 +5,7 @@ interface EpisodeProps {
   duration: string;
   date: string;
   isDraft?: boolean;
+  transcriptionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
   onPlay?: () => void;
   onTranscribe?: () => void;
   onDelete?: () => void;
@@ -15,6 +16,7 @@ const Episode: React.FC<EpisodeProps> = ({
   duration,
   date,
   isDraft = false,
+  transcriptionStatus = 'pending',
   onPlay,
   onTranscribe,
   onDelete
@@ -27,6 +29,16 @@ const Episode: React.FC<EpisodeProps> = ({
           {isDraft && (
             <span className="bg-yellow-100 text-yellow-800 text-sm px-2 py-1 rounded">
               Draft
+            </span>
+          )}
+          {transcriptionStatus === 'processing' && (
+            <span className="bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded animate-pulse">
+              Transcribing...
+            </span>
+          )}
+          {transcriptionStatus === 'completed' && (
+            <span className="bg-green-100 text-green-800 text-sm px-2 py-1 rounded">
+              Transcribed
             </span>
           )}
         </div>
@@ -46,22 +58,28 @@ const Episode: React.FC<EpisodeProps> = ({
           <button
             onClick={onPlay}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            type="button"
           >
             <span>▶️</span>
             Play
           </button>
 
-          <button
-            onClick={onTranscribe}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg transition-colors"
-          >
-            <span>📝</span>
-            Transcribe
-          </button>
+          {transcriptionStatus !== 'completed' && (
+            <button
+              onClick={onTranscribe}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg transition-colors"
+              type="button"
+              disabled={transcriptionStatus === 'processing'}
+            >
+              <span>📝</span>
+              {transcriptionStatus === 'processing' ? 'Transcribing...' : 'Transcribe'}
+            </button>
+          )}
 
           <button
             onClick={onDelete}
             className="flex items-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg transition-colors"
+            type="button"
           >
             <span>🗑️</span>
             Delete

@@ -3,15 +3,20 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertEpisodeSchema } from "@shared/schema";
 import { generatePodcastFeed } from "./utils/feed";
-import { processEpisode, transcribeAudio } from "./utils/ai";
+import OpenAI from "openai";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import express from 'express';
+import express from "express";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 const FEED_CONFIG = {
   title: process.env.PODCAST_TITLE || "My Podcast",
-  description: process.env.PODCAST_DESCRIPTION || "A podcast created with QuickCast",
+  description:
+    process.env.PODCAST_DESCRIPTION || "A podcast created with QuickCast",
   id: process.env.PODCAST_FEED_ID || "https://quickcast.example.com/feed",
   link: process.env.PODCAST_FEED_LINK || "https://quickcast.example.com",
   language: process.env.PODCAST_LANGUAGE || "en",
@@ -19,46 +24,63 @@ const FEED_CONFIG = {
   author: {
     name: process.env.PODCAST_AUTHOR_NAME || "Podcast Author",
     email: process.env.PODCAST_AUTHOR_EMAIL,
-    link: process.env.PODCAST_AUTHOR_LINK
-  }
+    link: process.env.PODCAST_AUTHOR_LINK,
+  },
 };
 
 // Configure multer for audio file uploads
 const multerStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = path.join(process.cwd(), 'uploads');
-    // Create uploads directory if it doesn't exist
+    const uploadDir = path.join(process.cwd(), "uploads");
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    // Generate unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
+  },
 });
 
 const upload = multer({ storage: multerStorage });
 
+async function transcribeAudio(audioPath: string): Promise<string> {
+  try {
+    console.log("Starting transcription for:", audioPath);
+
+    const audioFile = fs.createReadStream(path.join(process.cwd(), audioPath));
+
+    const transcription = await openai.audio.transcriptions.create({
+      file: audioFile,
+      model: "whisper-1",
+      language: "en",
+      response_format: "text",
+    });
+
+    console.log("Transcription completed successfully");
+    return transcription;
+  } catch (error) {
+    console.error("Transcription failed:", error);
+    throw error;
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create uploads directory if it doesn't exist
-  const uploadDir = path.join(process.cwd(), 'uploads');
+  const uploadDir = path.join(process.cwd(), "uploads");
   if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
 
   // Serve uploaded files statically
-  app.use('/uploads', express.static(uploadDir));
+  app.use("/uploads", express.static(uploadDir));
 
   // File upload endpoint
-  app.post('/api/upload', upload.single('audio'), (req, res) => {
+  app.post("/api/upload", upload.single("audio"), (req, res) => {
     if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+      return res.status(400).json({ message: "No file uploaded" });
     }
-
-    // Return the URL to access the file
     const audioUrl = `/uploads/${req.file.filename}`;
     res.json({ audioUrl });
   });
@@ -85,24 +107,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      // Create the episode first
       const episode = await storage.createEpisode(result.data);
-
-      // Start AI processing in the background
-      processEpisode(episode)
-        .then(async (aiData) => {
-          // Update the episode with AI-generated content
-          const updatedEpisode = await storage.updateEpisode(episode.id, aiData);
-          console.log('AI processing completed for episode:', episode.id);
-        })
-        .catch((error) => {
-          console.error('AI processing failed for episode:', episode.id, error);
-          storage.updateEpisode(episode.id, { transcriptionStatus: 'failed' });
-        });
-
       res.json(episode);
     } catch (error) {
-      console.error('Failed to create episode:', error);
+      console.error("Failed to create episode:", error);
       res.status(500).json({ message: "Failed to create episode" });
     }
   });
@@ -142,49 +150,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/feed.xml", async (_req, res) => {
     const episodes = await storage.getEpisodes();
     const feed = generatePodcastFeed(episodes, FEED_CONFIG);
-    res.type('application/xml');
+    res.type("application/xml");
     res.send(feed);
   });
 
-  // Add new transcription endpoint
+  // Transcription endpoint
   app.post("/api/episodes/:id/transcribe", async (req, res) => {
     try {
       const episode = await storage.getEpisode(Number(req.params.id));
       if (!episode) {
-        res.status(404).json({ message: "Episode not found" });
-        return;
+        return res.status(404).json({ message: "Episode not found" });
       }
 
-      console.log('Starting transcription process for episode:', episode.id);
+      if (!episode.audioUrl) {
+        return res
+          .status(400)
+          .json({ message: "No audio file found for episode" });
+      }
+
+      console.log("Starting transcription process for episode:", episode.id);
 
       // Update episode status to show processing
-      await storage.updateEpisode(episode.id, { transcriptionStatus: 'processing' });
+      await storage.updateEpisode(episode.id, {
+        transcriptionStatus: "processing",
+        transcript: null,
+      });
 
-      // Start processing in the background
-      processEpisode(episode)
-        .then(async (aiData) => {
-          console.log('AI processing completed for episode:', episode.id);
-          await storage.updateEpisode(episode.id, {
-            ...aiData,
-            transcriptionStatus: 'completed'
-          });
-        })
-        .catch((error) => {
-          console.error('AI processing failed for episode:', episode.id, error);
-          storage.updateEpisode(episode.id, { 
-            transcriptionStatus: 'failed',
-            transcript: null 
-          });
+      try {
+        // Remove leading slash if present for file system path
+        const audioPath = episode.audioUrl.startsWith("/")
+          ? episode.audioUrl.slice(1)
+          : episode.audioUrl;
+
+        // Get transcription
+        const transcript = await transcribeAudio(audioPath);
+
+        // Update with transcription results
+        const updatedEpisode = await storage.updateEpisode(episode.id, {
+          transcript: transcript,
+          transcriptionStatus: "completed",
         });
 
-      res.json({ message: "Transcription started" });
+        console.log("Transcription completed for episode:", episode.id);
+        return res.json(updatedEpisode);
+      } catch (error) {
+        console.error("Transcription failed:", error);
+
+        // Update status to failed
+        await storage.updateEpisode(episode.id, {
+          transcriptionStatus: "failed",
+          transcript: null,
+        });
+
+        return res.status(500).json({
+          message: "Transcription failed",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
     } catch (error) {
-      console.error('Failed to start transcription:', error);
-      res.status(500).json({ message: "Failed to start transcription" });
+      console.error("Error in transcription endpoint:", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   });
 
-  // Add transcript update endpoint
+  // Transcript update endpoint
   app.patch("/api/episodes/:id/transcript", async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -203,7 +232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(episode);
     } catch (error) {
-      console.error('Failed to update transcript:', error);
+      console.error("Failed to update transcript:", error);
       res.status(500).json({ message: "Failed to update transcript" });
     }
   });

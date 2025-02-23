@@ -1,21 +1,19 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Play, Trash2, Clock, Calendar, FileText } from 'lucide-react';
-import type { Episode } from '@shared/schema';
+import type { Episode as EpisodeType } from '@shared/schema';
 import { format } from 'date-fns';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import Episode from './Episode';
 
 interface EpisodeListProps {
-  onPlay: (episode: Episode) => void;
+  onPlay: (episode: EpisodeType) => void;
   onDelete: (id: number) => void;
   view: 'grid' | 'list';
 }
 
 export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
-  const { data: episodes, isLoading } = useQuery<Episode[]>({
+  const { data: episodes, isLoading } = useQuery<EpisodeType[]>({
     queryKey: ['/api/episodes']
   });
   const queryClient = useQueryClient();
@@ -24,6 +22,10 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
   const transcribeEpisode = useMutation({
     mutationFn: async (id: number) => {
       const response = await apiRequest('POST', `/api/episodes/${id}/transcribe`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to transcribe episode');
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -34,10 +36,10 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
         duration: 5000,
       });
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: "Transcription Failed",
-        description: "Unable to start transcription. Please try again later.",
+        description: error.message || "Unable to start transcription. Please try again later.",
         variant: "destructive",
         duration: 5000,
       });
@@ -63,81 +65,25 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
   const draftEpisodes = episodes.filter(episode => episode.status === 'draft');
   const publishedEpisodes = episodes.filter(episode => episode.status === 'published');
 
-  const renderEpisodeList = (episodeList: Episode[], title: string) => (
+  const renderEpisodeList = (episodeList: EpisodeType[], title: string) => (
     <div className="mb-8">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
-      <div className={view === 'grid'
-        ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+      <div className={view === 'grid' 
+        ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" 
         : "space-y-4"
       }>
         {episodeList.map((episode) => (
-          <Card key={episode.id}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <h3 className="font-medium truncate">{episode.title}</h3>
-                {episode.status === 'draft' && (
-                  <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">
-                    Draft
-                  </span>
-                )}
-                {episode.transcriptionStatus === 'processing' && (
-                  <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full animate-pulse">
-                    Transcribing...
-                  </span>
-                )}
-                {episode.transcriptionStatus === 'completed' && (
-                  <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">
-                    Transcribed
-                  </span>
-                )}
-              </div>
-
-              <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Clock className="w-4 h-4" />
-                  {Math.floor(episode.duration / 60)}:{(episode.duration % 60).toString().padStart(2, '0')}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Calendar className="w-4 h-4" />
-                  {format(new Date(episode.createdAt), 'MMM d, yyyy')}
-                </div>
-              </div>
-
-              <div className="flex gap-2 mt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onPlay(episode)}
-                >
-                  <Play className="h-4 w-4 mr-2" />
-                  Play
-                </Button>
-
-                {episode.transcriptionStatus !== 'completed' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => transcribeEpisode.mutate(episode.id)}
-                    disabled={transcribeEpisode.isPending || episode.transcriptionStatus === 'processing'}
-                    className="text-blue-500 hover:text-blue-600"
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    {transcribeEpisode.isPending ? 'Starting...' : 'Transcribe'}
-                  </Button>
-                )}
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-red-500 hover:text-red-600"
-                  onClick={() => onDelete(episode.id)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <Episode
+            key={episode.id}
+            title={episode.title}
+            duration={`${Math.floor(episode.duration / 60)}:${(episode.duration % 60).toString().padStart(2, '0')}`}
+            date={format(new Date(episode.createdAt), 'MMM d, yyyy')}
+            isDraft={episode.status === 'draft'}
+            transcriptionStatus={episode.transcriptionStatus}
+            onPlay={() => onPlay(episode)}
+            onTranscribe={() => transcribeEpisode.mutate(episode.id)}
+            onDelete={() => onDelete(episode.id)}
+          />
         ))}
       </div>
     </div>
