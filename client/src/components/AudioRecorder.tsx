@@ -62,32 +62,46 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
     const blob = await recorderRef.current.stopRecording();
     setIsRecording(false);
     if (blob) {
-      const duration = await getDuration(blob);
+      const audioDuration = await getDuration(blob);
       // Get auto-detected trim points
-      const { start, end } = recorderRef.current.getTrimPoints();
+      const { start, end, duration } = recorderRef.current.getTrimPoints();
       setTrimStart(start);
       setTrimEnd(end);
-      setDuration(duration);
+      setDuration(duration || audioDuration || 0);
       setIsEditing(true);
       setIsAutoTrimmed(true);
 
       // Show feedback about auto-trimming
-      const trimmedDuration = end - start;
-      const savedTime = duration - trimmedDuration;
-      if (savedTime > 0.5) { // Only show if we saved more than half a second
-        toast({
-          title: "Auto-trimmed",
-          description: `Removed ${savedTime.toFixed(1)} seconds of silence`,
-        });
+      if (duration && audioDuration) {
+        const trimmedDuration = end - start;
+        const savedTime = audioDuration - trimmedDuration;
+        if (savedTime > 0.5) { // Only show if we saved more than half a second
+          toast({
+            title: "Auto-trimmed",
+            description: `Removed ${savedTime.toFixed(1)} seconds of silence`,
+          });
+        }
       }
     }
+  };
+
+  const formatTime = (seconds: number): string => {
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      return "00:00";
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   const getDuration = async (blob: Blob): Promise<number> => {
     return new Promise((resolve) => {
       const audio = new Audio(URL.createObjectURL(blob));
       audio.addEventListener('loadedmetadata', () => {
-        resolve(audio.duration);
+        resolve(Number.isFinite(audio.duration) ? audio.duration : 0);
+      });
+      audio.addEventListener('error', () => {
+        resolve(0);
       });
     });
   };
@@ -189,7 +203,7 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
         )}
 
         <div className="text-xl font-mono">
-          {new Date(duration * 1000).toISOString().substr(14, 5)}
+          {formatTime(duration)}
         </div>
       </div>
     </div>
