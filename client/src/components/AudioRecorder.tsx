@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Mic, Square, Play, Pause } from 'lucide-react';
+import { Mic, Square, Scissors, Save, RotateCcw } from 'lucide-react';
 import { AudioWaveform } from './AudioWaveform';
 import { AudioRecorder as AudioRecorderUtil } from '@/lib/audio';
 import { useToast } from '@/hooks/use-toast';
@@ -13,6 +13,9 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [analyserData, setAnalyserData] = useState<Uint8Array>(new Uint8Array());
+  const [isEditing, setIsEditing] = useState(false);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
   const recorderRef = useRef<AudioRecorderUtil | null>(null);
   const animationFrameRef = useRef<number>();
   const { toast } = useToast();
@@ -40,6 +43,7 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
     if (success) {
       setIsRecording(true);
       setDuration(0);
+      setIsEditing(false);
       updateAnalyser();
     } else {
       toast({
@@ -52,12 +56,57 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
 
   const stopRecording = async () => {
     if (!recorderRef.current) return;
-    
+
     const blob = await recorderRef.current.stopRecording();
     setIsRecording(false);
     if (blob) {
-      onRecordingComplete(blob);
+      const duration = await getDuration(blob);
+      setTrimStart(0);
+      setTrimEnd(duration);
+      setIsEditing(true);
     }
+  };
+
+  const getDuration = async (blob: Blob): Promise<number> => {
+    return new Promise((resolve) => {
+      const audio = new Audio(URL.createObjectURL(blob));
+      audio.addEventListener('loadedmetadata', () => {
+        resolve(audio.duration);
+      });
+    });
+  };
+
+  const handleTrimChange = (start: number, end: number) => {
+    if (!recorderRef.current) return;
+    setTrimStart(start);
+    setTrimEnd(end);
+    recorderRef.current.setTrimPoints(start, end);
+  };
+
+  const handleSaveTrim = async () => {
+    if (!recorderRef.current) return;
+
+    const trimmedBlob = await recorderRef.current.getTrimmedAudio();
+    if (trimmedBlob) {
+      onRecordingComplete(trimmedBlob);
+      setIsEditing(false);
+      toast({
+        title: "Success",
+        description: "Recording trimmed and saved successfully!",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to trim the recording.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleReset = () => {
+    setIsEditing(false);
+    setAnalyserData(new Uint8Array());
+    setDuration(0);
   };
 
   useEffect(() => {
@@ -73,20 +122,47 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
   return (
     <div className="flex flex-col items-center gap-6 p-6 bg-white rounded-xl shadow-lg">
       <div className="w-full">
-        <AudioWaveform analyserData={analyserData} />
+        <AudioWaveform 
+          analyserData={analyserData}
+          duration={duration}
+          trimStart={trimStart}
+          trimEnd={trimEnd}
+          onTrimChange={isEditing ? handleTrimChange : undefined}
+          isEditable={isEditing}
+        />
       </div>
-      
+
       <div className="flex items-center gap-4">
-        <Button
-          onClick={isRecording ? stopRecording : startRecording}
-          size="lg"
-          className={`rounded-full w-16 h-16 ${
-            isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-[#FF4F4F] hover:bg-red-600'
-          }`}
-        >
-          {isRecording ? <Square className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-        </Button>
-        
+        {!isEditing ? (
+          <Button
+            onClick={isRecording ? stopRecording : startRecording}
+            size="lg"
+            className={`rounded-full w-16 h-16 ${
+              isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-[#FF4F4F] hover:bg-red-600'
+            }`}
+          >
+            {isRecording ? <Square className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+          </Button>
+        ) : (
+          <>
+            <Button
+              onClick={handleSaveTrim}
+              size="lg"
+              className="rounded-full w-16 h-16 bg-green-500 hover:bg-green-600"
+            >
+              <Save className="h-6 w-6" />
+            </Button>
+            <Button
+              onClick={handleReset}
+              size="lg"
+              variant="outline"
+              className="rounded-full w-16 h-16"
+            >
+              <RotateCcw className="h-6 w-6" />
+            </Button>
+          </>
+        )}
+
         <div className="text-xl font-mono">
           {new Date(duration * 1000).toISOString().substr(14, 5)}
         </div>
