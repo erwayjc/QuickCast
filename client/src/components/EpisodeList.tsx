@@ -96,39 +96,37 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
                 </div>
               </div>
 
-              <div className="mt-4">
-                {episode.status === 'draft' && !episode.transcriptionStatus && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => transcribeEpisode.mutate(episode.id)}
-                    disabled={transcribeEpisode.isPending}
-                    className="mb-2 w-full"
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Create episode transcript?
-                  </Button>
-                )}
+              {episode.status === 'draft' && !episode.transcriptionStatus && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => transcribeEpisode.mutate(episode.id)}
+                  disabled={transcribeEpisode.isPending}
+                  className="mb-2 w-full mt-4"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Create episode transcript?
+                </Button>
+              )}
 
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onPlay(episode)}
-                  >
-                    <Play className="h-4 w-4 mr-2" />
-                    Play
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-red-500 hover:text-red-600"
-                    onClick={() => onDelete(episode.id)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </Button>
-                </div>
+              <div className="flex gap-2 mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPlay(episode)}
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  Play
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-red-500 hover:text-red-600"
+                  onClick={() => onDelete(episode.id)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
               </div>
             </CardContent>
           </Card>
