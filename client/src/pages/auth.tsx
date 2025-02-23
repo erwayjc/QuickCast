@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useForm } from 'react-hook-form';
@@ -22,6 +22,7 @@ export default function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [, setLocation] = useLocation();
   const { signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuth();
+  const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
 
   const form = useForm<AuthFormData>({
     resolver: zodResolver(authSchema),
@@ -31,12 +32,12 @@ export default function AuthPage() {
     },
   });
 
-  const onSubmit = async (data: AuthFormData, isSignUp: boolean) => {
+  const onSubmit = async (data: AuthFormData) => {
     try {
       setIsLoading(true);
       setError(null);
 
-      if (isSignUp) {
+      if (activeTab === "signup") {
         await signUpWithEmail(data.email, data.password);
       } else {
         await signInWithEmail(data.email, data.password);
@@ -60,7 +61,7 @@ export default function AuthPage() {
           </p>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="signin">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "signin" | "signup")}>
             <TabsList className="grid w-full grid-cols-2 mb-8">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
@@ -73,7 +74,7 @@ export default function AuthPage() {
               </Alert>
             )}
 
-            <form onSubmit={form.handleSubmit((data) => onSubmit(data, false))}>
+            <form onSubmit={form.handleSubmit(onSubmit)}>
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Input
@@ -100,28 +101,15 @@ export default function AuthPage() {
                     </p>
                   )}
                 </div>
-              </div>
 
-              <TabsContent value="signin" className="space-y-4 mt-4">
                 <Button
                   type="submit"
                   className="w-full"
                   disabled={isLoading}
                 >
-                  Sign In
+                  {activeTab === "signup" ? "Sign Up" : "Sign In"}
                 </Button>
-              </TabsContent>
-
-              <TabsContent value="signup" className="space-y-4 mt-4">
-                <Button
-                  type="button"
-                  className="w-full"
-                  disabled={isLoading}
-                  onClick={() => form.handleSubmit((data) => onSubmit(data, true))()}
-                >
-                  Sign Up
-                </Button>
-              </TabsContent>
+              </div>
             </form>
 
             <div className="relative my-8">
