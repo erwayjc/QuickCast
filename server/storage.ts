@@ -1,55 +1,83 @@
-import { episodes, type Episode, type InsertEpisode } from "@shared/schema";
-import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { ref, get, set, remove, update, push, child } from "firebase/database";
+import { database } from "../client/src/lib/firebase";
+import type { Episode, InsertEpisode } from "@shared/schema";
 
 export interface IStorage {
   getEpisodes(): Promise<Episode[]>;
-  getEpisode(id: number): Promise<Episode | undefined>;
+  getEpisode(id: string): Promise<Episode | undefined>;
   createEpisode(episode: InsertEpisode): Promise<Episode>;
-  updateEpisode(id: number, data: Partial<Episode>): Promise<Episode | undefined>;
-  publishEpisode(id: number): Promise<Episode | undefined>;
-  deleteEpisode(id: number): Promise<void>;
+  updateEpisode(id: string, data: Partial<Episode>): Promise<Episode | undefined>;
+  publishEpisode(id: string): Promise<Episode | undefined>;
+  deleteEpisode(id: string): Promise<void>;
 }
 
-export class DatabaseStorage implements IStorage {
+export class FirebaseStorage implements IStorage {
+  private episodesRef = ref(database, 'episodes');
+
   async getEpisodes(): Promise<Episode[]> {
-    return await db.select().from(episodes).orderBy(episodes.createdAt);
+    const snapshot = await get(this.episodesRef);
+    if (!snapshot.exists()) return [];
+
+    const episodes: Episode[] = [];
+    snapshot.forEach((childSnapshot) => {
+      episodes.push({
+        id: childSnapshot.key!,
+        ...childSnapshot.val()
+      });
+    });
+
+    return episodes.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   }
 
-  async getEpisode(id: number): Promise<Episode | undefined> {
-    const [episode] = await db.select().from(episodes).where(eq(episodes.id, id));
-    return episode;
+  async getEpisode(id: string): Promise<Episode | undefined> {
+    const snapshot = await get(child(this.episodesRef, id));
+    if (!snapshot.exists()) return undefined;
+    return { id: snapshot.key!, ...snapshot.val() };
   }
 
   async createEpisode(insertEpisode: InsertEpisode): Promise<Episode> {
-    const [episode] = await db
-      .insert(episodes)
-      .values(insertEpisode)
-      .returning();
+    const newEpisodeRef = push(this.episodesRef);
+    const now = new Date().toISOString();
+
+    const episode: Episode = {
+      ...insertEpisode,
+      id: newEpisodeRef.key!,
+      createdAt: now,
+      status: 'draft' as const,
+      transcriptionStatus: 'pending' as const
+    };
+
+    await set(newEpisodeRef, episode);
     return episode;
   }
 
-  async updateEpisode(id: number, data: Partial<Episode>): Promise<Episode | undefined> {
-    const [episode] = await db
-      .update(episodes)
-      .set(data)
-      .where(eq(episodes.id, id))
-      .returning();
-    return episode;
+  async updateEpisode(id: string, data: Partial<Episode>): Promise<Episode | undefined> {
+    const episodeRef = child(this.episodesRef, id);
+    const snapshot = await get(episodeRef);
+    if (!snapshot.exists()) return undefined;
+
+    const updatedEpisode = {
+      ...snapshot.val(),
+      ...data,
+      id
+    };
+
+    await update(episodeRef, data);
+    return updatedEpisode;
   }
 
-  async publishEpisode(id: number): Promise<Episode | undefined> {
-    const [episode] = await db
-      .update(episodes)
-      .set({ status: 'published' })
-      .where(eq(episodes.id, id))
-      .returning();
-    return episode;
+  async publishEpisode(id: string): Promise<Episode | undefined> {
+    return this.updateEpisode(id, { 
+      status: 'published' as const,
+      publishDate: new Date().toISOString()
+    });
   }
 
-  async deleteEpisode(id: number): Promise<void> {
-    await db.delete(episodes).where(eq(episodes.id, id));
+  async deleteEpisode(id: string): Promise<void> {
+    await remove(child(this.episodesRef, id));
   }
 }
 
-export const storage = new DatabaseStorage();
+export const storage = new FirebaseStorage();
