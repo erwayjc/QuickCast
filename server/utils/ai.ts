@@ -1,17 +1,26 @@
 import OpenAI from "openai";
 import { type Episode } from "@shared/schema";
+import https from "https";
+import { Readable } from "stream";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function transcribeAudio(audioUrl: string): Promise<string> {
   try {
-    const response = await fetch(audioUrl);
-    const blob = await response.blob();
-    const audioReadStream = blob.stream() as unknown as File;
+    // Download the audio file using https
+    const audioStream = await new Promise<Readable>((resolve, reject) => {
+      https.get(audioUrl, (response) => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`Failed to download audio: ${response.statusCode}`));
+          return;
+        }
+        resolve(response);
+      }).on('error', reject);
+    });
 
     const transcription = await openai.audio.transcriptions.create({
-      file: audioReadStream,
+      file: audioStream as any,
       model: "whisper-1",
     });
 
