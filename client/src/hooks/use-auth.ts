@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { 
-  signInWithPopup,
+  signInWithRedirect,
   signOut,
   onAuthStateChanged,
-  type User 
+  type User,
+  getRedirectResult
 } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
@@ -19,20 +20,36 @@ export function useAuth() {
       setLoading(false);
     });
 
+    // Check for redirect result when component mounts
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          toast({
+            title: "Welcome!",
+            description: `Signed in as ${result.user.email}`,
+          });
+        }
+      })
+      .catch((error) => {
+        console.error("Auth Error:", error);
+        toast({
+          title: "Error",
+          description: "Failed to sign in with Google. Please try again.",
+          variant: "destructive",
+        });
+      });
+
     return () => unsubscribe();
-  }, []);
+  }, [toast]);
 
   const signInWithGoogle = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      toast({
-        title: "Welcome!",
-        description: `Signed in as ${result.user.email}`,
-      });
+      await signInWithRedirect(auth, googleProvider);
     } catch (error) {
+      console.error("Sign in error:", error);
       toast({
         title: "Error",
-        description: "Failed to sign in with Google",
+        description: "Failed to initiate sign in with Google",
         variant: "destructive",
       });
     }
@@ -46,6 +63,7 @@ export function useAuth() {
         description: "You have been signed out successfully",
       });
     } catch (error) {
+      console.error("Sign out error:", error);
       toast({
         title: "Error",
         description: "Failed to sign out",
