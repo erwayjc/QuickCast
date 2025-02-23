@@ -3,8 +3,6 @@ import { Link, useLocation } from 'wouter';
 import { cn } from '@/lib/utils';
 import { 
   Mic, 
-  Book, 
-  User2, 
   FileText,
   Layout
 } from 'lucide-react';
@@ -53,20 +51,6 @@ export function Sidebar() {
           isActive={location === '/recordings'}
         >
           Quick recordings
-        </NavItem>
-        <NavItem 
-          href="/learn" 
-          icon={<Book className="w-4 h-4" />}
-          isActive={location === '/learn'}
-        >
-          Learn Descript
-        </NavItem>
-        <NavItem 
-          href="/speakers" 
-          icon={<User2 className="w-4 h-4" />}
-          isActive={location === '/speakers'}
-        >
-          AI speakers
         </NavItem>
         <NavItem 
           href="/templates" 
