@@ -16,6 +16,7 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
+  const [isAutoTrimmed, setIsAutoTrimmed] = useState(false);
   const recorderRef = useRef<AudioRecorderUtil | null>(null);
   const animationFrameRef = useRef<number>();
   const { toast } = useToast();
@@ -44,6 +45,7 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
       setIsRecording(true);
       setDuration(0);
       setIsEditing(false);
+      setIsAutoTrimmed(false);
       updateAnalyser();
     } else {
       toast({
@@ -61,9 +63,23 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
     setIsRecording(false);
     if (blob) {
       const duration = await getDuration(blob);
-      setTrimStart(0);
-      setTrimEnd(duration);
+      // Get auto-detected trim points
+      const { start, end } = recorderRef.current.getTrimPoints();
+      setTrimStart(start);
+      setTrimEnd(end);
+      setDuration(duration);
       setIsEditing(true);
+      setIsAutoTrimmed(true);
+
+      // Show feedback about auto-trimming
+      const trimmedDuration = end - start;
+      const savedTime = duration - trimmedDuration;
+      if (savedTime > 0.5) { // Only show if we saved more than half a second
+        toast({
+          title: "Auto-trimmed",
+          description: `Removed ${savedTime.toFixed(1)} seconds of silence`,
+        });
+      }
     }
   };
 
@@ -81,6 +97,7 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
     setTrimStart(start);
     setTrimEnd(end);
     recorderRef.current.setTrimPoints(start, end);
+    setIsAutoTrimmed(false);
   };
 
   const handleSaveTrim = async () => {
@@ -92,7 +109,9 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
       setIsEditing(false);
       toast({
         title: "Success",
-        description: "Recording trimmed and saved successfully!",
+        description: isAutoTrimmed 
+          ? "Recording auto-trimmed and saved successfully!"
+          : "Recording trimmed and saved successfully!",
       });
     } else {
       toast({
@@ -107,6 +126,7 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
     setIsEditing(false);
     setAnalyserData(new Uint8Array());
     setDuration(0);
+    setIsAutoTrimmed(false);
   };
 
   useEffect(() => {
@@ -130,6 +150,11 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
           onTrimChange={isEditing ? handleTrimChange : undefined}
           isEditable={isEditing}
         />
+        {isEditing && isAutoTrimmed && (
+          <p className="text-sm text-muted-foreground mt-2 text-center">
+            Silence automatically removed. Drag markers to adjust.
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-4">

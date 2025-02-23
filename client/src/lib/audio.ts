@@ -8,6 +8,11 @@ export class AudioRecorder {
   private trimStart: number = 0;
   private trimEnd: number = 0;
 
+  // Configuration for silence detection
+  private readonly SILENCE_THRESHOLD = 0.01; // Amplitude threshold for silence
+  private readonly MIN_SILENCE_DURATION = 0.5; // Minimum silence duration in seconds
+  private readonly KEEP_SILENCE = 0.1; // Amount of silence to keep at edges
+
   async startRecording() {
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -45,7 +50,15 @@ export class AudioRecorder {
         // Convert blob to AudioBuffer for editing
         const arrayBuffer = await audioBlob.arrayBuffer();
         this.audioBuffer = await this.audioContext?.decodeAudioData(arrayBuffer) || null;
-        this.trimEnd = this.audioBuffer?.duration || 0;
+
+        // Auto-detect trim points based on silence
+        if (this.audioBuffer) {
+          const { start, end } = this.detectSilence();
+          this.trimStart = start;
+          this.trimEnd = end;
+        } else {
+          this.trimEnd = this.audioBuffer?.duration || 0;
+        }
 
         this.stream = null;
         this.mediaRecorder = null;
@@ -55,6 +68,50 @@ export class AudioRecorder {
 
       this.mediaRecorder.stop();
     });
+  }
+
+  private detectSilence(): { start: number, end: number } {
+    if (!this.audioBuffer) {
+      return { start: 0, end: 0 };
+    }
+
+    const channelData = this.audioBuffer.getChannelData(0);
+    const sampleRate = this.audioBuffer.sampleRate;
+    const samplesPerBlock = Math.floor(0.01 * sampleRate); // 10ms blocks
+    const numBlocks = Math.ceil(channelData.length / samplesPerBlock);
+    const rms = new Float32Array(numBlocks);
+
+    // Calculate RMS for each block
+    for (let i = 0; i < numBlocks; i++) {
+      const start = i * samplesPerBlock;
+      const end = Math.min(start + samplesPerBlock, channelData.length);
+      let sum = 0;
+
+      for (let j = start; j < end; j++) {
+        sum += channelData[j] * channelData[j];
+      }
+
+      rms[i] = Math.sqrt(sum / (end - start));
+    }
+
+    // Find start trim point (first non-silent block)
+    let startBlock = 0;
+    while (startBlock < numBlocks && rms[startBlock] < this.SILENCE_THRESHOLD) {
+      startBlock++;
+    }
+    startBlock = Math.max(0, startBlock - Math.floor(this.KEEP_SILENCE * sampleRate / samplesPerBlock));
+
+    // Find end trim point (last non-silent block)
+    let endBlock = numBlocks - 1;
+    while (endBlock > startBlock && rms[endBlock] < this.SILENCE_THRESHOLD) {
+      endBlock--;
+    }
+    endBlock = Math.min(numBlocks - 1, endBlock + Math.floor(this.KEEP_SILENCE * sampleRate / samplesPerBlock));
+
+    return {
+      start: (startBlock * samplesPerBlock) / sampleRate,
+      end: Math.min((endBlock * samplesPerBlock) / sampleRate, this.audioBuffer.duration)
+    };
   }
 
   getAnalyserData() {
@@ -68,7 +125,6 @@ export class AudioRecorder {
     return this.mediaRecorder?.state === 'recording';
   }
 
-  // New methods for trimming functionality
   setTrimPoints(start: number, end: number) {
     if (!this.audioBuffer) return;
     this.trimStart = Math.max(0, Math.min(start, this.audioBuffer.duration));
