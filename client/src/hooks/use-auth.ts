@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { 
   signInWithRedirect,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  type User,
-  getRedirectResult
+  type User
 } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
@@ -15,72 +16,64 @@ export function useAuth() {
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log('Setting up auth state listener');
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log('Auth state changed:', user ? 'User logged in' : 'No user');
       setUser(user);
       setLoading(false);
     });
 
-    // Check for redirect result when component mounts
-    console.log('Checking for redirect result');
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result?.user) {
-          console.log('Redirect result success:', result.user.email);
-          toast({
-            title: "Welcome!",
-            description: `Signed in as ${result.user.email}`,
-          });
-        } else {
-          console.log('No redirect result');
-        }
-      })
-      .catch((error) => {
-        console.error("Auth Error:", error);
-        const errorMessage = error.code === 'auth/configuration-not-found' 
-          ? 'Firebase configuration error. Please check your Firebase setup.'
-          : `Failed to sign in with Google: ${error.message}`;
-
-        toast({
-          title: "Error",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      });
-
     return () => unsubscribe();
-  }, [toast]);
+  }, []);
+
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      toast({
+        title: "Welcome back!",
+        description: `Signed in as ${result.user.email}`,
+      });
+    } catch (error: any) {
+      console.error("Sign in error:", error);
+      throw new Error(
+        error.code === 'auth/wrong-password'
+          ? 'Incorrect password'
+          : error.code === 'auth/user-not-found'
+          ? 'No account found with this email'
+          : error.code === 'auth/invalid-email'
+          ? 'Invalid email address'
+          : 'Failed to sign in'
+      );
+    }
+  };
+
+  const signUpWithEmail = async (email: string, password: string) => {
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      toast({
+        title: "Welcome to QuickCast!",
+        description: `Account created successfully as ${result.user.email}`,
+      });
+    } catch (error: any) {
+      console.error("Sign up error:", error);
+      throw new Error(
+        error.code === 'auth/email-already-in-use'
+          ? 'An account already exists with this email'
+          : error.code === 'auth/invalid-email'
+          ? 'Invalid email address'
+          : error.code === 'auth/weak-password'
+          ? 'Password is too weak'
+          : 'Failed to create account'
+      );
+    }
+  };
 
   const signInWithGoogle = async () => {
     try {
-      console.log('Initiating Google sign in...');
-      console.log('Auth state before sign in:', auth.currentUser);
-      console.log('Provider:', googleProvider);
-
-      await signInWithRedirect(auth, googleProvider).catch(error => {
-        throw error; // Re-throw to be caught by the outer catch
-      });
-
-      console.log('Sign in redirect initiated successfully');
+      await signInWithRedirect(auth, googleProvider);
     } catch (error: any) {
-      console.error("Sign in error:", error);
-      console.error("Error code:", error.code);
-      console.error("Error message:", error.message);
-
-      const errorMessage = 
-        error.code === 'auth/configuration-not-found' 
-          ? 'Firebase configuration error. Please check your Firebase setup.'
-          : error.code === 'auth/popup-blocked'
-          ? 'Popup was blocked. Please allow popups for this site.'
-          : error.code === 'auth/cancelled-popup-request'
-          ? 'Authentication cancelled. Please try again.'
-          : `Failed to initiate sign in: ${error.message}`;
-
+      console.error("Google sign in error:", error);
       toast({
         title: "Error",
-        description: errorMessage,
+        description: "Failed to sign in with Google",
         variant: "destructive",
       });
     }
@@ -88,7 +81,6 @@ export function useAuth() {
 
   const logout = async () => {
     try {
-      console.log('Initiating logout');
       await signOut(auth);
       toast({
         title: "Signed out",
@@ -107,6 +99,8 @@ export function useAuth() {
   return {
     user,
     loading,
+    signInWithEmail,
+    signUpWithEmail,
     signInWithGoogle,
     logout,
   };
