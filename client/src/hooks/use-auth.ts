@@ -15,26 +15,33 @@ export function useAuth() {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log('Setting up auth state listener');
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log('Auth state changed:', user ? 'User logged in' : 'No user');
       setUser(user);
       setLoading(false);
     });
 
     // Check for redirect result when component mounts
+    console.log('Checking for redirect result');
     getRedirectResult(auth)
       .then((result) => {
         if (result?.user) {
+          console.log('Redirect result success:', result.user.email);
           toast({
             title: "Welcome!",
             description: `Signed in as ${result.user.email}`,
           });
+        } else {
+          console.log('No redirect result');
         }
       })
       .catch((error) => {
         console.error("Auth Error:", error);
         toast({
           title: "Error",
-          description: "Failed to sign in with Google. Please try again.",
+          description: `Failed to sign in with Google: ${error.message}`,
           variant: "destructive",
         });
       });
@@ -44,12 +51,13 @@ export function useAuth() {
 
   const signInWithGoogle = async () => {
     try {
+      console.log('Initiating Google sign in');
       await signInWithRedirect(auth, googleProvider);
     } catch (error) {
       console.error("Sign in error:", error);
       toast({
         title: "Error",
-        description: "Failed to initiate sign in with Google",
+        description: "Failed to initiate sign in with Google. Please try again.",
         variant: "destructive",
       });
     }
@@ -57,6 +65,7 @@ export function useAuth() {
 
   const logout = async () => {
     try {
+      console.log('Initiating logout');
       await signOut(auth);
       toast({
         title: "Signed out",
