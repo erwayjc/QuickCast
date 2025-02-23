@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertEpisodeSchema } from "@shared/schema";
 import { generatePodcastFeed } from "./utils/feed";
-import { processEpisode } from "./utils/ai";
+import { processEpisode, transcribeAudio } from "./utils/ai";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -144,6 +144,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const feed = generatePodcastFeed(episodes, FEED_CONFIG);
     res.type('application/xml');
     res.send(feed);
+  });
+
+  // Add new transcription endpoint
+  app.post("/api/episodes/:id/transcribe", async (req, res) => {
+    try {
+      const episode = await storage.getEpisode(Number(req.params.id));
+      if (!episode) {
+        res.status(404).json({ message: "Episode not found" });
+        return;
+      }
+
+      // Update episode status to show processing
+      await storage.updateEpisode(episode.id, { transcriptionStatus: 'processing' });
+
+      // Start processing in the background
+      processEpisode(episode)
+        .then(async (aiData) => {
+          await storage.updateEpisode(episode.id, aiData);
+          console.log('AI processing completed for episode:', episode.id);
+        })
+        .catch((error) => {
+          console.error('AI processing failed for episode:', episode.id, error);
+          storage.updateEpisode(episode.id, { transcriptionStatus: 'failed' });
+        });
+
+      res.json({ message: "Transcription started" });
+    } catch (error) {
+      console.error('Failed to start transcription:', error);
+      res.status(500).json({ message: "Failed to start transcription" });
+    }
+  });
+
+  // Add transcript update endpoint
+  app.patch("/api/episodes/:id/transcript", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { transcript } = req.body;
+
+      if (!transcript) {
+        res.status(400).json({ message: "Transcript is required" });
+        return;
+      }
+
+      const episode = await storage.updateEpisode(id, { transcript });
+      if (!episode) {
+        res.status(404).json({ message: "Episode not found" });
+        return;
+      }
+
+      res.json(episode);
+    } catch (error) {
+      console.error('Failed to update transcript:', error);
+      res.status(500).json({ message: "Failed to update transcript" });
+    }
   });
 
   const httpServer = createServer(app);
