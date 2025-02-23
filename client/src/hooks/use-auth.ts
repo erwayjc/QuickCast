@@ -39,9 +39,13 @@ export function useAuth() {
       })
       .catch((error) => {
         console.error("Auth Error:", error);
+        const errorMessage = error.code === 'auth/configuration-not-found' 
+          ? 'Firebase configuration error. Please check your Firebase setup.'
+          : `Failed to sign in with Google: ${error.message}`;
+
         toast({
           title: "Error",
-          description: `Failed to sign in with Google: ${error.message}`,
+          description: errorMessage,
           variant: "destructive",
         });
       });

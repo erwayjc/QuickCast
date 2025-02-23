@@ -11,7 +11,7 @@ const requiredEnvVars = [
 
 for (const envVar of requiredEnvVars) {
   if (!import.meta.env[envVar]) {
-    console.error(`Missing required environment variable: ${envVar}`);
+    throw new Error(`Missing required environment variable: ${envVar}`);
   }
 }
 
@@ -24,17 +24,32 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-console.log('Initializing Firebase with config:', {
+console.log('Firebase Configuration:', {
   ...firebaseConfig,
-  apiKey: '[REDACTED]' // Don't log the API key
+  apiKey: '[REDACTED]',
+  authDomain: firebaseConfig.authDomain,
+  projectId: firebaseConfig.projectId,
 });
 
-// Initialize Firebase
-export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
+let app;
+let auth;
+let googleProvider;
 
-// Configure Google Provider
-googleProvider.setCustomParameters({
-  prompt: 'select_account'
-});
+try {
+  // Initialize Firebase
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  googleProvider = new GoogleAuthProvider();
+
+  // Configure Google Provider
+  googleProvider.setCustomParameters({
+    prompt: 'select_account'
+  });
+
+  console.log('Firebase initialized successfully');
+} catch (error) {
+  console.error('Error initializing Firebase:', error);
+  throw error;
+}
+
+export { app, auth, googleProvider };
