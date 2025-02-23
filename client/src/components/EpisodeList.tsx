@@ -1,10 +1,12 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Play, Trash2, Clock, Calendar, ChevronDown, ChevronUp, Tag } from 'lucide-react';
+import { Play, Trash2, Clock, Calendar, ChevronDown, ChevronUp, Tag, CheckCircle2 } from 'lucide-react';
 import type { Episode } from '@shared/schema';
 import { format } from 'date-fns';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 
 interface EpisodeListProps {
   onPlay: (episode: Episode) => void;
@@ -16,8 +18,30 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
   const { data: episodes, isLoading } = useQuery<Episode[]>({
     queryKey: ['/api/episodes']
   });
+  const [expandedEpisodes, setExpandedEpisodes] = useState<number[]>([]);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
-  const [expandedEpisodes, setExpandedEpisodes] = React.useState<number[]>([]);
+  const updateTitle = useMutation({
+    mutationFn: async ({ id, title }: { id: number; title: string }) => {
+      const response = await apiRequest('PATCH', `/api/episodes/${id}`, { title });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
+      toast({
+        title: "Success",
+        description: "Episode title updated successfully"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update episode title",
+        variant: "destructive"
+      });
+    }
+  });
 
   const toggleExpanded = (id: number) => {
     setExpandedEpisodes(prev => 
@@ -70,6 +94,29 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
                     </span>
                   )}
                 </div>
+
+                {/* Title Suggestions */}
+                {episode.titleSuggestions && episode.titleSuggestions.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <h4 className="text-sm font-medium">Title Suggestions</h4>
+                    <div className="space-y-2">
+                      {episode.titleSuggestions.map((suggestion, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="flex-1 justify-start text-left"
+                            onClick={() => updateTitle.mutate({ id: episode.id, title: suggestion })}
+                          >
+                            {suggestion}
+                            <CheckCircle2 className="w-4 h-4 ml-2" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
@@ -81,7 +128,6 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
                   </div>
                 </div>
 
-                {/* AI-Generated Content */}
                 {(episode.showNotes || episode.aiGeneratedTags) && (
                   <div className="mt-4">
                     <Button
@@ -103,7 +149,7 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
                         {episode.showNotes && (
                           <div>
                             <h4 className="text-sm font-medium mb-1">Show Notes</h4>
-                            <p className="text-sm text-muted-foreground">{episode.showNotes}</p>
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{episode.showNotes}</p>
                           </div>
                         )}
                         {episode.aiGeneratedTags && episode.aiGeneratedTags.length > 0 && (

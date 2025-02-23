@@ -29,6 +29,7 @@ export const episodes = pgTable("episodes", {
   showNotes: text("show_notes"),
   aiGeneratedTags: text("ai_generated_tags").array(),
   aiGeneratedSummary: text("ai_generated_summary"),
+  titleSuggestions: text("title_suggestions").array(),
   introMusicUrl: text("intro_music_url"),
   outroMusicUrl: text("outro_music_url")
 });
@@ -67,7 +68,8 @@ export const insertEpisodeSchema = createInsertSchema(episodes)
     aiGeneratedTags: true,
     aiGeneratedSummary: true,
     introMusicUrl: true,
-    outroMusicUrl: true
+    outroMusicUrl: true,
+    titleSuggestions: true
   });
 
 export const insertTemplateSchema = createInsertSchema(templates)

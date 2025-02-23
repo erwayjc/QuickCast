@@ -107,6 +107,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/episodes/:id", async (req, res) => {
+    const id = Number(req.params.id);
+    const { title } = req.body;
+
+    if (!title) {
+      res.status(400).json({ message: "Title is required" });
+      return;
+    }
+
+    const episode = await storage.updateEpisode(id, { title });
+    if (!episode) {
+      res.status(404).json({ message: "Episode not found" });
+      return;
+    }
+    res.json(episode);
+  });
+
   app.patch("/api/episodes/:id/publish", async (req, res) => {
     const episode = await storage.publishEpisode(Number(req.params.id));
     if (!episode) {
