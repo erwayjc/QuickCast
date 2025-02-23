@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Play, Trash2, Clock, Calendar, ChevronDown, ChevronUp, Tag, CheckCircle2, FileText } from 'lucide-react';
+import { Play, Trash2, Clock, Calendar, FileText } from 'lucide-react';
 import type { Episode } from '@shared/schema';
 import { format } from 'date-fns';
 import { apiRequest } from '@/lib/queryClient';
@@ -19,7 +19,6 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
   const { data: episodes, isLoading } = useQuery<Episode[]>({
     queryKey: ['/api/episodes']
   });
-  const [expandedEpisodes, setExpandedEpisodes] = useState<number[]>([]);
   const [editingTranscript, setEditingTranscript] = useState<{id: number, text: string} | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -44,36 +43,6 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
       });
     }
   });
-
-  const approveTranscript = useMutation({
-    mutationFn: async ({ id, transcript }: { id: number; transcript: string }) => {
-      const response = await apiRequest('PATCH', `/api/episodes/${id}/transcript`, { transcript });
-      return response.json();
-    },
-    onSuccess: () => {
-      setEditingTranscript(null);
-      queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
-      toast({
-        title: "Success",
-        description: "Transcript saved successfully"
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to save transcript",
-        variant: "destructive"
-      });
-    }
-  });
-
-  const toggleExpanded = (id: number) => {
-    setExpandedEpisodes(prev => 
-      prev.includes(id) 
-        ? prev.filter(epId => epId !== id)
-        : [...prev, id]
-    );
-  };
 
   if (isLoading) {
     return (
@@ -140,57 +109,6 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
                     <FileText className="h-4 w-4 mr-2" />
                     Create episode transcript?
                   </Button>
-                </div>
-              )}
-
-              {episode.transcript && (
-                <div className="mt-4">
-                  <h4 className="text-sm font-medium mb-2">Transcript</h4>
-                  {editingTranscript?.id === episode.id ? (
-                    <div className="space-y-2">
-                      <Textarea 
-                        value={editingTranscript.text}
-                        onChange={(e) => setEditingTranscript({ id: episode.id, text: e.target.value })}
-                        className="min-h-[200px]"
-                      />
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => approveTranscript.mutate({ 
-                            id: episode.id, 
-                            transcript: editingTranscript.text 
-                          })}
-                        >
-                          Save Changes
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setEditingTranscript(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                        {episode.transcript}
-                      </p>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setEditingTranscript({ 
-                            id: episode.id, 
-                            text: episode.transcript || '' 
-                          })}
-                        >
-                          Edit
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
