@@ -66,8 +66,8 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
   const renderEpisodeList = (episodeList: Episode[], title: string) => (
     <div className="mb-8">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
-      <div className={view === 'grid' 
-        ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" 
+      <div className={view === 'grid'
+        ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
         : "space-y-4"
       }>
         {episodeList.map((episode) => (
@@ -103,19 +103,6 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
                 </div>
               </div>
 
-              {episode.status === 'draft' && !episode.transcriptionStatus && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => transcribeEpisode.mutate(episode.id)}
-                  disabled={transcribeEpisode.isPending}
-                  className="mb-2 w-full mt-4"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  {transcribeEpisode.isPending ? 'Starting Transcription...' : 'Transcribe with AI'}
-                </Button>
-              )}
-
               <div className="flex gap-2 mt-4">
                 <Button
                   variant="outline"
@@ -125,6 +112,20 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
                   <Play className="h-4 w-4 mr-2" />
                   Play
                 </Button>
+
+                {episode.transcriptionStatus !== 'completed' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => transcribeEpisode.mutate(episode.id)}
+                    disabled={transcribeEpisode.isPending || episode.transcriptionStatus === 'processing'}
+                    className="text-blue-500 hover:text-blue-600"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    {transcribeEpisode.isPending ? 'Starting...' : 'Transcribe'}
+                  </Button>
+                )}
+
                 <Button
                   variant="outline"
                   size="sm"
