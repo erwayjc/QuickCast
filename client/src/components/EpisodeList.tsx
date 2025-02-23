@@ -102,217 +102,117 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
         : "space-y-4"
       }>
         {episodeList.map((episode) => (
-          <Card key={episode.id} className={view === 'grid' ? 'h-full' : ''}>
-            <CardContent className={`flex ${view === 'grid' ? 'flex-col h-full' : 'items-start'} p-4 gap-4`}>
-              <div className="flex-1 w-full">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium truncate">{episode.title}</h3>
-                  {episode.status === 'draft' && (
-                    <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">
-                      Draft
-                    </span>
-                  )}
-                  {episode.transcriptionStatus === 'processing' && (
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full animate-pulse">
-                      Processing Transcript
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-4 h-4" />
-                    {Math.floor(episode.duration / 60)}:{(episode.duration % 60).toString().padStart(2, '0')}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    {format(new Date(episode.createdAt), 'MMM d, yyyy')}
-                  </div>
-                </div>
-
-                {episode.status === 'draft' && !episode.transcript && !episode.transcriptionStatus && (
-                  <div className="mt-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => transcribeEpisode.mutate(episode.id)}
-                      disabled={transcribeEpisode.isPending}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      Create episode transcript?
-                    </Button>
-                  </div>
+          <Card key={episode.id}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <h3 className="font-medium truncate">{episode.title}</h3>
+                {episode.status === 'draft' && (
+                  <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">
+                    Draft
+                  </span>
                 )}
-
-                {episode.transcript && (
-                  <div className="mt-4">
-                    <h4 className="text-sm font-medium mb-2">Transcript</h4>
-                    {editingTranscript?.id === episode.id ? (
-                      <div className="space-y-2">
-                        <Textarea 
-                          value={editingTranscript.text}
-                          onChange={(e) => setEditingTranscript({ id: episode.id, text: e.target.value })}
-                          className="min-h-[200px]"
-                        />
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => approveTranscript.mutate({ 
-                              id: episode.id, 
-                              transcript: editingTranscript.text 
-                            })}
-                          >
-                            Save Changes
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setEditingTranscript(null)}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                          {episode.transcript}
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setEditingTranscript({ 
-                              id: episode.id, 
-                              text: episode.transcript || '' 
-                            })}
-                          >
-                            Edit
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {episode.titleSuggestions && episode.titleSuggestions.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <h4 className="text-sm font-medium">Title Suggestions</h4>
-                    <div className="space-y-2">
-                      {episode.titleSuggestions.map((suggestion, index) => (
-                        <div key={index} className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="flex-1 justify-start text-left"
-                            onClick={() => updateTitle.mutate({ id: episode.id, title: suggestion })}
-                          >
-                            {suggestion}
-                            <CheckCircle2 className="w-4 h-4 ml-2" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-4 h-4" />
-                    {Math.floor(episode.duration / 60)}:{(episode.duration % 60).toString().padStart(2, '0')}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    {format(new Date(episode.createdAt), 'MMM d, yyyy')}
-                  </div>
-                </div>
-
-                {(episode.showNotes || episode.aiGeneratedTags) && (
-                  <div className="mt-4">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleExpanded(episode.id)}
-                      className="w-full justify-between"
-                    >
-                      Show AI Content
-                      {expandedEpisodes.includes(episode.id) ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
-                      )}
-                    </Button>
-
-                    {expandedEpisodes.includes(episode.id) && (
-                      <div className="mt-2 space-y-2">
-                        {episode.showNotes && (
-                          <div>
-                            <h4 className="text-sm font-medium mb-1">Show Notes</h4>
-                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{episode.showNotes}</p>
-                          </div>
-                        )}
-                        {episode.aiGeneratedTags && episode.aiGeneratedTags.length > 0 && (
-                          <div>
-                            <h4 className="text-sm font-medium mb-1">Tags</h4>
-                            <div className="flex flex-wrap gap-1">
-                              {episode.aiGeneratedTags.map((tag, index) => (
-                                <div 
-                                  key={index}
-                                  className="flex items-center px-2 py-1 text-xs rounded-full bg-primary/10 text-primary"
-                                >
-                                  <Tag className="w-3 h-3 mr-1" />
-                                  {tag}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {view === 'grid' && (
-                  <div className="mt-4 space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onPlay(episode)}
-                    >
-                      <Play className="h-4 w-4 mr-2" />
-                      Play
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-red-500 hover:text-red-600"
-                      onClick={() => onDelete(episode.id)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </Button>
-                  </div>
+                {episode.transcriptionStatus === 'processing' && (
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full animate-pulse">
+                    Processing Transcript
+                  </span>
                 )}
               </div>
 
-              {view === 'list' && (
-                <div className="flex gap-2">
+              <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <Clock className="w-4 h-4" />
+                  {Math.floor(episode.duration / 60)}:{(episode.duration % 60).toString().padStart(2, '0')}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Calendar className="w-4 h-4" />
+                  {format(new Date(episode.createdAt), 'MMM d, yyyy')}
+                </div>
+              </div>
+
+              {episode.status === 'draft' && !episode.transcriptionStatus && (
+                <div className="mt-4">
                   <Button
                     variant="outline"
-                    size="icon"
-                    onClick={() => onPlay(episode)}
+                    size="sm"
+                    onClick={() => transcribeEpisode.mutate(episode.id)}
+                    disabled={transcribeEpisode.isPending}
                   >
-                    <Play className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="text-red-500 hover:text-red-600"
-                    onClick={() => onDelete(episode.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
+                    <FileText className="h-4 w-4 mr-2" />
+                    Create episode transcript?
                   </Button>
                 </div>
               )}
+
+              {episode.transcript && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium mb-2">Transcript</h4>
+                  {editingTranscript?.id === episode.id ? (
+                    <div className="space-y-2">
+                      <Textarea 
+                        value={editingTranscript.text}
+                        onChange={(e) => setEditingTranscript({ id: episode.id, text: e.target.value })}
+                        className="min-h-[200px]"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => approveTranscript.mutate({ 
+                            id: episode.id, 
+                            transcript: editingTranscript.text 
+                          })}
+                        >
+                          Save Changes
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingTranscript(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {episode.transcript}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingTranscript({ 
+                            id: episode.id, 
+                            text: episode.transcript || '' 
+                          })}
+                        >
+                          Edit
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-4 flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPlay(episode)}
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  Play
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-red-500 hover:text-red-600"
+                  onClick={() => onDelete(episode.id)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ))}
