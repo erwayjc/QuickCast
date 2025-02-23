@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
 import { 
   Mic, 
   Square, 
@@ -10,7 +12,8 @@ import {
   Timer,
   AlertCircle,
   Play,
-  Pause
+  Pause,
+  Scissors
 } from 'lucide-react';
 import { AudioWaveform } from './AudioWaveform';
 import { AudioRecorder as AudioRecorderUtil } from '@/lib/audio';
@@ -30,6 +33,8 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
   const [isAutoTrimmed, setIsAutoTrimmed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioPreview, setAudioPreview] = useState<HTMLAudioElement | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [autoRemoveSilence, setAutoRemoveSilence] = useState(true);
   const recorderRef = useRef<AudioRecorderUtil | null>(null);
   const animationFrameRef = useRef<number>();
   const { toast } = useToast();
@@ -64,6 +69,7 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
       setIsEditing(false);
       setIsAutoTrimmed(false);
       setIsPlaying(false);
+      setCurrentTime(0);
       if (audioPreview) {
         audioPreview.pause();
         audioPreview.remove();
@@ -86,22 +92,35 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
     setIsRecording(false);
     if (blob) {
       const audioDuration = await getDuration(blob);
-      const { start, end, duration } = recorderRef.current.getTrimPoints();
+      let { start, end, duration } = recorderRef.current.getTrimPoints();
+
+      // Only apply auto-trim if enabled
+      if (!autoRemoveSilence) {
+        start = 0;
+        end = audioDuration || 0;
+      }
+
       setTrimStart(start);
       setTrimEnd(end);
       setDuration(duration || audioDuration || 0);
       setIsEditing(true);
-      setIsAutoTrimmed(true);
+      setIsAutoTrimmed(autoRemoveSilence);
 
       // Create audio preview
       const audio = new Audio(URL.createObjectURL(blob));
-      audio.addEventListener('ended', () => setIsPlaying(false));
+      audio.addEventListener('ended', () => {
+        setIsPlaying(false);
+        setCurrentTime(0);
+      });
+      audio.addEventListener('timeupdate', () => {
+        setCurrentTime(audio.currentTime);
+      });
       setAudioPreview(audio);
 
-      if (duration && audioDuration) {
+      if (autoRemoveSilence && duration && audioDuration) {
         const trimmedDuration = end - start;
         const savedTime = audioDuration - trimmedDuration;
-        if (savedTime > 0.5) { 
+        if (savedTime > 0.5) {
           toast({
             title: "Auto-trimmed",
             description: `Removed ${savedTime.toFixed(1)} seconds of silence`,
@@ -133,6 +152,13 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
         });
       }
     }
+  };
+
+  const handleSeek = (value: number[]) => {
+    if (!audioPreview || !duration) return;
+    const newTime = value[0];
+    audioPreview.currentTime = newTime;
+    setCurrentTime(newTime);
   };
 
   const formatTime = (seconds: number): string => {
@@ -197,6 +223,7 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
       setAudioPreview(null);
     }
     setIsPlaying(false);
+    setCurrentTime(0);
   };
 
   useEffect(() => {
@@ -235,6 +262,7 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
             trimEnd={trimEnd}
             onTrimChange={isEditing ? handleTrimChange : undefined}
             isEditable={isEditing}
+            currentTime={currentTime}
           />
           {isEditing && isAutoTrimmed && (
             <div className="absolute -bottom-6 left-0 right-0 flex items-center justify-center gap-2 text-amber-500">
@@ -244,7 +272,35 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
           )}
         </div>
 
+        {isEditing && (
+          <div className="flex items-center justify-between px-1 text-zinc-400">
+            <span className="text-sm font-mono">{formatTime(currentTime)}</span>
+            <Slider
+              value={[currentTime]}
+              min={0}
+              max={duration}
+              step={0.1}
+              onValueChange={handleSeek}
+              className="mx-4 flex-1"
+            />
+            <span className="text-sm font-mono">{formatTime(duration)}</span>
+          </div>
+        )}
+
         <div className="flex flex-col gap-4">
+          {!isRecording && !isEditing && (
+            <div className="flex items-center justify-between px-1 text-zinc-400">
+              <div className="flex items-center gap-2">
+                <Scissors className="w-4 h-4" />
+                <span className="text-sm">Auto-remove silence</span>
+              </div>
+              <Switch
+                checked={autoRemoveSilence}
+                onCheckedChange={setAutoRemoveSilence}
+              />
+            </div>
+          )}
+
           {!isEditing ? (
             <div className="flex justify-center">
               <Button

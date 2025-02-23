@@ -7,6 +7,7 @@ interface AudioWaveformProps {
   trimEnd?: number;
   onTrimChange?: (start: number, end: number) => void;
   isEditable?: boolean;
+  currentTime?: number;
 }
 
 export function AudioWaveform({ 
@@ -15,7 +16,8 @@ export function AudioWaveform({
   trimStart = 0,
   trimEnd = duration,
   onTrimChange,
-  isEditable = false 
+  isEditable = false,
+  currentTime = 0
 }: AudioWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -103,6 +105,23 @@ export function AudioWaveform({
       ctx.lineTo(endX + 8, height/2);
       ctx.lineTo(endX, height/2 + handleHeight/2);
       ctx.fill();
+
+      // Draw playback position line
+      if (currentTime >= 0 && currentTime <= duration) {
+        const positionX = (currentTime / duration) * width;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(positionX, 0);
+        ctx.lineTo(positionX, height);
+        ctx.stroke();
+
+        // Draw position handle
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(positionX, height - 10, 4, 0, 2 * Math.PI);
+        ctx.fill();
+      }
     }
   };
 
@@ -114,7 +133,7 @@ export function AudioWaveform({
     if (!ctx) return;
 
     drawWaveform(ctx, canvas.width, canvas.height);
-  }, [analyserData, trimStart, trimEnd, duration, isEditable]);
+  }, [analyserData, trimStart, trimEnd, duration, isEditable, currentTime]);
 
   return (
     <canvas 
