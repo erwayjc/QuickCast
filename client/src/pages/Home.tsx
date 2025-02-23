@@ -68,15 +68,22 @@ export default function Home() {
     }
   };
 
+  // Get view from MainLayout context
+  const view = window.localStorage.getItem('view') as 'grid' | 'list' || 'list';
+
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="mb-8">
         <AudioRecorder onRecordingComplete={handleRecordingComplete} />
       </div>
 
       <div>
         <h2 className="text-2xl font-semibold mb-4">Episodes</h2>
-        <EpisodeList onPlay={handlePlay} onDelete={handleDelete} />
+        <EpisodeList 
+          onPlay={handlePlay} 
+          onDelete={handleDelete}
+          view={view}
+        />
       </div>
     </div>
   );
