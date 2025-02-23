@@ -28,6 +28,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(episode);
   });
 
+  app.patch("/api/episodes/:id/publish", async (req, res) => {
+    const episode = await storage.publishEpisode(Number(req.params.id));
+    if (!episode) {
+      res.status(404).json({ message: "Episode not found" });
+      return;
+    }
+    res.json(episode);
+  });
+
   app.delete("/api/episodes/:id", async (req, res) => {
     await storage.deleteEpisode(Number(req.params.id));
     res.status(204).send();

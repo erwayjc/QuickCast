@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Upload } from 'lucide-react';
 import { AudioWaveform } from './AudioWaveform';
 import type { Episode } from '@shared/schema';
 
@@ -9,11 +9,19 @@ interface PodcastPlayerProps {
   episode: Episode | null;
   onPlay: () => void;
   onPause: () => void;
+  onPublish?: () => void;
   isPlaying: boolean;
   waveformData: Uint8Array;
 }
 
-export function PodcastPlayer({ episode, onPlay, onPause, isPlaying, waveformData }: PodcastPlayerProps) {
+export function PodcastPlayer({ 
+  episode, 
+  onPlay, 
+  onPause, 
+  onPublish,
+  isPlaying, 
+  waveformData 
+}: PodcastPlayerProps) {
   return (
     <Card className="bg-white shadow-lg">
       <CardContent className="p-6">
@@ -56,6 +64,17 @@ export function PodcastPlayer({ episode, onPlay, onPause, isPlaying, waveformDat
               <Button variant="outline" size="icon" disabled={!episode}>
                 <SkipForward className="h-4 w-4" />
               </Button>
+
+              {episode?.status === 'draft' && onPublish && (
+                <Button 
+                  variant="outline"
+                  onClick={onPublish}
+                  className="ml-auto"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Publish
+                </Button>
+              )}
             </div>
 
             {/* Waveform */}

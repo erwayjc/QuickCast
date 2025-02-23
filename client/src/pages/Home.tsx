@@ -24,11 +24,12 @@ export default function Home() {
         audioUrl,
         duration: Math.floor(blob.size / 16000),
         hasIntro: false,
-        hasOutro: false
+        hasOutro: false,
+        status: 'draft'
       });
 
       queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
-      setCurrentEpisode(episode);
+      setCurrentEpisode(await episode.json());
 
       toast({
         title: "Success",
@@ -62,6 +63,29 @@ export default function Home() {
   const handlePause = () => {
     audioPlayer?.pause();
     setIsPlaying(false);
+  };
+
+  const handlePublish = async () => {
+    if (!currentEpisode) return;
+
+    try {
+      const response = await apiRequest('PATCH', `/api/episodes/${currentEpisode.id}/publish`);
+      const publishedEpisode = await response.json();
+
+      setCurrentEpisode(publishedEpisode);
+      queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
+
+      toast({
+        title: "Success",
+        description: "Episode published successfully!",
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to publish episode",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -103,6 +127,7 @@ export default function Home() {
             episode={currentEpisode}
             onPlay={() => handlePlay(currentEpisode)}
             onPause={handlePause}
+            onPublish={currentEpisode.status === 'draft' ? handlePublish : undefined}
             isPlaying={isPlaying}
             waveformData={waveformData}
           />

@@ -6,6 +6,7 @@ export interface IStorage {
   getEpisodes(): Promise<Episode[]>;
   getEpisode(id: number): Promise<Episode | undefined>;
   createEpisode(episode: InsertEpisode): Promise<Episode>;
+  publishEpisode(id: number): Promise<Episode | undefined>;
   deleteEpisode(id: number): Promise<void>;
 }
 
@@ -23,6 +24,15 @@ export class DatabaseStorage implements IStorage {
     const [episode] = await db
       .insert(episodes)
       .values(insertEpisode)
+      .returning();
+    return episode;
+  }
+
+  async publishEpisode(id: number): Promise<Episode | undefined> {
+    const [episode] = await db
+      .update(episodes)
+      .set({ status: 'published' })
+      .where(eq(episodes.id, id))
       .returning();
     return episode;
   }
