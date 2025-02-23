@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,6 @@ import type { Episode } from '@shared/schema';
 import { format } from 'date-fns';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { Textarea } from '@/components/ui/textarea';
 
 interface EpisodeListProps {
   onPlay: (episode: Episode) => void;
@@ -19,7 +18,6 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
   const { data: episodes, isLoading } = useQuery<Episode[]>({
     queryKey: ['/api/episodes']
   });
-  const [editingTranscript, setEditingTranscript] = useState<{id: number, text: string} | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -98,20 +96,6 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
                 </div>
               </div>
 
-              {episode.status === 'draft' && !episode.transcriptionStatus && (
-                <div className="mt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => transcribeEpisode.mutate(episode.id)}
-                    disabled={transcribeEpisode.isPending}
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Create episode transcript?
-                  </Button>
-                </div>
-              )}
-
               <div className="mt-4 flex gap-2">
                 <Button
                   variant="outline"
@@ -121,6 +105,17 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
                   <Play className="h-4 w-4 mr-2" />
                   Play
                 </Button>
+                {episode.status === 'draft' && !episode.transcriptionStatus && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => transcribeEpisode.mutate(episode.id)}
+                    disabled={transcribeEpisode.isPending}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Create episode transcript?
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
