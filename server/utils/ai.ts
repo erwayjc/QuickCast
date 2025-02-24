@@ -128,11 +128,23 @@ export async function generateTitleSuggestions(transcript: string): Promise<stri
 export async function generateShowNotes(transcript: string): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o", 
       messages: [
         {
           role: "system",
-          content: "You are a professional podcast show notes writer. Create detailed, well-structured show notes from the provided transcript. Include key points, topics discussed, timestamps for important moments, and any notable quotes. Format with Markdown for better readability."
+          content: `You are a professional podcast show notes writer. Create detailed, structured show notes from the provided transcript.
+Format the output in Markdown with:
+- A brief episode summary at the top (2-3 sentences)
+- Key topics discussed with timestamps
+- Notable quotes
+- Key takeaways or action items
+- Resources mentioned (if any)
+
+Use proper Markdown formatting including:
+- Headers (##) for sections
+- Bullet points for lists
+- > for quotes
+- *italics* for emphasis on important points`
         },
         {
           role: "user",

@@ -1,3 +1,4 @@
+import { generateShowNotes } from "./utils/ai";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
@@ -227,6 +228,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("[Route] Error in transcription endpoint:", error);
       return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Show notes generation endpoint
+  app.post("/api/episodes/:id/show-notes", async (req, res) => {
+    try {
+      const episode = await storage.getEpisode(Number(req.params.id));
+      if (!episode) {
+        return res.status(404).json({ message: "Episode not found" });
+      }
+
+      if (!episode.transcript) {
+        return res.status(400).json({ 
+          message: "Episode must be transcribed before generating show notes" 
+        });
+      }
+
+      const showNotes = await generateShowNotes(episode.transcript);
+
+      // Update episode with show notes
+      const updatedEpisode = await storage.updateEpisode(episode.id, {
+        showNotes
+      });
+
+      return res.json(updatedEpisode);
+    } catch (error) {
+      console.error("Failed to generate show notes:", error);
+      return res.status(500).json({ 
+        message: "Failed to generate show notes",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 

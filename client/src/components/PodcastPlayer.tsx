@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, SkipBack, Play, Pause, SkipForward } from 'lucide-react';
+import { FileText, SkipBack, Play, Pause, SkipForward, FileEdit } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { type transcriptionStatus } from '@shared/schema';
+import { useToast } from '@/hooks/use-toast';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 
 interface PlayerProps {
   episode: {
@@ -11,6 +14,7 @@ interface PlayerProps {
     title: string;
     audioUrl: string;
     transcript?: string | null;
+    showNotes?: string | null;
     transcriptionStatus?: (typeof transcriptionStatus.enumValues)[number];
   };
   onTranscribe?: (id: number) => void;
@@ -19,6 +23,37 @@ interface PlayerProps {
 export function PodcastPlayer({ episode, onTranscribe }: PlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const generateShowNotes = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/episodes/${episode.id}/show-notes`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to generate show notes');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
+      toast({
+        title: "Show Notes Generated",
+        description: "Your episode's show notes have been generated successfully.",
+        duration: 5000,
+      });
+      setShowNotes(true);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to Generate Show Notes",
+        description: error.message || "Please ensure the episode is transcribed first.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    }
+  });
 
   const handleTranscriptClick = () => {
     if (episode.transcriptionStatus === 'completed' && episode.transcript) {
@@ -74,6 +109,18 @@ export function PodcastPlayer({ episode, onTranscribe }: PlayerProps) {
             >
               <FileText className="h-6 w-6" />
             </Button>
+
+            {episode.transcriptionStatus === 'completed' && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => generateShowNotes.mutate()}
+                disabled={generateShowNotes.isPending}
+                className={episode.showNotes ? 'text-green-600' : ''}
+              >
+                <FileEdit className="h-6 w-6" />
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -89,9 +136,24 @@ export function PodcastPlayer({ episode, onTranscribe }: PlayerProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Show Notes Dialog */}
+      <Dialog open={showNotes} onOpenChange={setShowNotes}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Show Notes - {episode.title}</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4 prose prose-sm max-w-none">
+            {episode.showNotes ? (
+              <div dangerouslySetInnerHTML={{ __html: episode.showNotes }} />
+            ) : (
+              <p className="text-muted-foreground">No show notes available yet.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
 
-// Default export for the component
 export default PodcastPlayer;
