@@ -1,4 +1,4 @@
-import { generateShowNotes } from "./utils/ai";
+import { processEpisode } from "./utils/ai";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
@@ -45,27 +45,6 @@ const multerStorage = multer.diskStorage({
 });
 
 const upload = multer({ storage: multerStorage });
-
-async function transcribeAudio(audioPath: string): Promise<string> {
-  try {
-    console.log("Starting transcription for:", audioPath);
-
-    const audioFile = fs.createReadStream(path.join(process.cwd(), audioPath));
-
-    const transcription = await openai.audio.transcriptions.create({
-      file: audioFile,
-      model: "whisper-1",
-      language: "en",
-      response_format: "text",
-    });
-
-    console.log("Transcription completed successfully");
-    return transcription.text; //Fixed return type to string
-  } catch (error) {
-    console.error("Transcription failed:", error);
-    throw error;
-  }
-}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create uploads directory if it doesn't exist
@@ -155,7 +134,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.send(feed);
   });
 
-  // Transcription endpoint
+  // Enhanced transcription endpoint
   app.post("/api/episodes/:id/transcribe", async (req, res) => {
     try {
       const episode = await storage.getEpisode(Number(req.params.id));
@@ -166,12 +145,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!episode.audioUrl) {
         console.log('[Route] No audio URL found for episode:', episode.id);
-        return res
-          .status(400)
-          .json({ message: "No audio file found for episode" });
+        return res.status(400).json({ message: "No audio file found for episode" });
       }
 
-      console.log('[Route] Starting transcription process for episode:', {
+      console.log('[Route] Starting AI processing for episode:', {
         id: episode.id,
         audioUrl: episode.audioUrl,
         currentStatus: episode.transcriptionStatus
@@ -181,35 +158,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateEpisode(episode.id, {
         transcriptionStatus: "processing",
         transcript: null,
+        showNotes: null,
+        aiGeneratedTags: null,
+        aiGeneratedSummary: null,
+        titleSuggestions: null
       });
 
       try {
-        // Remove leading slash if present for file system path
-        const audioPath = episode.audioUrl.startsWith("/")
-          ? episode.audioUrl.slice(1)
-          : episode.audioUrl;
+        // Process the episode and get all AI-generated content
+        const aiContent = await processEpisode(episode);
 
-        console.log('[Route] Processing audio path:', audioPath);
-
-        // Get transcription
-        const transcript = await transcribeAudio(audioPath);
-        console.log('[Route] Transcription completed successfully, length:', transcript.length);
-
-        // Update with transcription results
+        // Update with all AI-generated content
         const updatedEpisode = await storage.updateEpisode(episode.id, {
-          transcript: transcript,
-          transcriptionStatus: "completed",
+          transcript: aiContent.transcript,
+          showNotes: aiContent.showNotes,
+          aiGeneratedTags: aiContent.aiGeneratedTags,
+          aiGeneratedSummary: aiContent.aiGeneratedSummary,
+          titleSuggestions: aiContent.titleSuggestions,
+          transcriptionStatus: "completed"
         });
 
-        console.log('[Route] Episode updated with transcription:', {
+        console.log('[Route] AI processing completed for episode:', {
           id: episode.id,
-          newStatus: 'completed',
-          hasTranscript: !!updatedEpisode?.transcript
+          hasTranscript: !!updatedEpisode?.transcript,
+          hasShowNotes: !!updatedEpisode?.showNotes,
+          hasTags: !!updatedEpisode?.aiGeneratedTags?.length,
+          hasSummary: !!updatedEpisode?.aiGeneratedSummary,
+          hasTitleSuggestions: !!updatedEpisode?.titleSuggestions?.length
         });
 
         return res.json(updatedEpisode);
       } catch (error) {
-        console.error('[Route] Transcription failed:', {
+        console.error('[Route] AI processing failed:', {
           episodeId: episode.id,
           error: error instanceof Error ? error.message : 'Unknown error'
         });
@@ -218,47 +198,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateEpisode(episode.id, {
           transcriptionStatus: "failed",
           transcript: null,
+          showNotes: null,
+          aiGeneratedTags: null,
+          aiGeneratedSummary: null,
+          titleSuggestions: null
         });
 
         return res.status(500).json({
-          message: "Transcription failed",
+          message: "AI processing failed",
           error: error instanceof Error ? error.message : "Unknown error",
         });
       }
     } catch (error) {
       console.error("[Route] Error in transcription endpoint:", error);
       return res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  // Show notes generation endpoint
-  app.post("/api/episodes/:id/show-notes", async (req, res) => {
-    try {
-      const episode = await storage.getEpisode(Number(req.params.id));
-      if (!episode) {
-        return res.status(404).json({ message: "Episode not found" });
-      }
-
-      if (!episode.transcript) {
-        return res.status(400).json({ 
-          message: "Episode must be transcribed before generating show notes" 
-        });
-      }
-
-      const showNotes = await generateShowNotes(episode.transcript);
-
-      // Update episode with show notes
-      const updatedEpisode = await storage.updateEpisode(episode.id, {
-        showNotes
-      });
-
-      return res.json(updatedEpisode);
-    } catch (error) {
-      console.error("Failed to generate show notes:", error);
-      return res.status(500).json({ 
-        message: "Failed to generate show notes",
-        error: error instanceof Error ? error.message : "Unknown error"
-      });
     }
   });
 
@@ -283,6 +236,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to update transcript:", error);
       res.status(500).json({ message: "Failed to update transcript" });
+    }
+  });
+
+  // Apply suggested title endpoint
+  app.patch("/api/episodes/:id/apply-title", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { titleIndex } = req.body;
+
+      const episode = await storage.getEpisode(id);
+      if (!episode) {
+        return res.status(404).json({ message: "Episode not found" });
+      }
+
+      if (!episode.titleSuggestions || !episode.titleSuggestions[titleIndex]) {
+        return res.status(400).json({ message: "Invalid title suggestion index" });
+      }
+
+      const updatedEpisode = await storage.updateEpisode(id, {
+        title: episode.titleSuggestions[titleIndex]
+      });
+
+      res.json(updatedEpisode);
+    } catch (error) {
+      console.error("Failed to apply suggested title:", error);
+      res.status(500).json({ message: "Failed to apply suggested title" });
     }
   });
 

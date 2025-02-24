@@ -28,18 +28,47 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
       }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
       toast({
-        title: "Transcription Started",
-        description: "Your episode is being transcribed. This may take a few minutes.",
+        title: "AI Processing Started",
+        description: "Your episode is being processed. We'll generate a transcript, show notes, tags, and more.",
         duration: 5000,
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Transcription Failed",
-        description: error.message || "Unable to start transcription. Please try again later.",
+        title: "Processing Failed",
+        description: error.message || "Unable to process episode. Please try again later.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    }
+  });
+
+  const applyTitleSuggestion = useMutation({
+    mutationFn: async ({ id, titleIndex }: { id: number; titleIndex: number }) => {
+      const response = await apiRequest('PATCH', `/api/episodes/${id}/apply-title`, {
+        titleIndex
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to apply title suggestion');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
+      toast({
+        title: "Title Updated",
+        description: "The suggested title has been applied to your episode.",
+        duration: 3000,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to Update Title",
+        description: error.message || "Unable to apply the suggested title.",
         variant: "destructive",
         duration: 5000,
       });
@@ -80,9 +109,16 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
             date={format(new Date(episode.createdAt), 'MMM d, yyyy')}
             isDraft={episode.status === 'draft'}
             transcriptionStatus={episode.transcriptionStatus || 'pending'}
+            transcript={episode.transcript}
+            showNotes={episode.showNotes}
+            aiGeneratedTags={episode.aiGeneratedTags}
+            aiGeneratedSummary={episode.aiGeneratedSummary}
+            titleSuggestions={episode.titleSuggestions}
             onPlay={() => onPlay(episode)}
             onTranscribe={() => transcribeEpisode.mutate(episode.id)}
             onDelete={() => onDelete(episode.id)}
+            onApplyTitleSuggestion={(titleIndex: number) => 
+              applyTitleSuggestion.mutate({ id: episode.id, titleIndex })}
           />
         ))}
       </div>

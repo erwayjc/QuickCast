@@ -2,11 +2,13 @@ import { pgTable, text, serial, timestamp, integer, boolean, pgEnum } from "driz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Enums
 export const episodeStatus = pgEnum('episode_status', ['draft', 'published']);
 export const episodeType = pgEnum('episode_type', ['full', 'trailer', 'bonus']);
 export const templateType = pgEnum('template_type', ['intro', 'outro']);
 export const transcriptionStatus = pgEnum('transcription_status', ['pending', 'processing', 'completed', 'failed']);
 
+// Episode table
 export const episodes = pgTable("episodes", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -23,17 +25,21 @@ export const episodes = pgTable("episodes", {
   status: episodeStatus("status").default('draft').notNull(),
   publishDate: timestamp("publish_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+
   // AI-related fields
   transcript: text("transcript"),
   transcriptionStatus: transcriptionStatus("transcription_status").default('pending'),
   showNotes: text("show_notes"),
-  aiGeneratedTags: text("ai_generated_tags").array(),
+  aiGeneratedTags: text("ai_generated_tags").array().default(Array()), // Initialize as empty array
   aiGeneratedSummary: text("ai_generated_summary"),
-  titleSuggestions: text("title_suggestions").array(),
+  titleSuggestions: text("title_suggestions").array().default(Array()), // Initialize as empty array
+
+  // Music-related fields
   introMusicUrl: text("intro_music_url"),
   outroMusicUrl: text("outro_music_url")
 });
 
+// Templates table
 export const templates = pgTable("templates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -46,6 +52,7 @@ export const templates = pgTable("templates", {
   updatedAt: timestamp("updated_at").defaultNow().notNull()
 });
 
+// Enhanced Zod schema for episode insertion with better validation
 export const insertEpisodeSchema = createInsertSchema(episodes)
   .pick({
     title: true,
@@ -61,7 +68,6 @@ export const insertEpisodeSchema = createInsertSchema(episodes)
     hasOutro: true,
     status: true,
     publishDate: true,
-    // Add new fields to insert schema
     transcript: true,
     transcriptionStatus: true,
     showNotes: true,
@@ -70,6 +76,15 @@ export const insertEpisodeSchema = createInsertSchema(episodes)
     introMusicUrl: true,
     outroMusicUrl: true,
     titleSuggestions: true
+  })
+  .extend({
+    // Add additional validation for AI-related fields
+    transcript: z.string().nullable().optional(),
+    transcriptionStatus: z.enum(['pending', 'processing', 'completed', 'failed']).default('pending'),
+    showNotes: z.string().nullable().optional(),
+    aiGeneratedTags: z.array(z.string()).default([]),
+    aiGeneratedSummary: z.string().nullable().optional(),
+    titleSuggestions: z.array(z.string()).default([])
   });
 
 export const insertTemplateSchema = createInsertSchema(templates)
@@ -82,6 +97,7 @@ export const insertTemplateSchema = createInsertSchema(templates)
     duration: true
   });
 
+// Type exports
 export type InsertEpisode = z.infer<typeof insertEpisodeSchema>;
 export type Episode = typeof episodes.$inferSelect;
 export type InsertTemplate = z.infer<typeof insertTemplateSchema>;
