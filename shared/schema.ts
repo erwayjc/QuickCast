@@ -26,20 +26,20 @@ export const episodes = pgTable("episodes", {
   publishDate: timestamp("publish_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 
+  // Music-related fields (keeping these)
+  introMusicUrl: text("intro_music_url"),
+  outroMusicUrl: text("outro_music_url"),
+
   // AI-related fields
   transcript: text("transcript"),
   transcriptionStatus: transcriptionStatus("transcription_status").default('pending'),
   showNotes: text("show_notes"),
-  aiGeneratedTags: text("ai_generated_tags").array().default(Array()), // Initialize as empty array
+  aiGeneratedTags: text("ai_generated_tags").array().default(Array()),
   aiGeneratedSummary: text("ai_generated_summary"),
-  titleSuggestions: text("title_suggestions").array().default(Array()), // Initialize as empty array
-
-  // Music-related fields
-  introMusicUrl: text("intro_music_url"),
-  outroMusicUrl: text("outro_music_url")
+  titleSuggestions: text("title_suggestions").array().default(Array())
 });
 
-// Templates table
+// Templates table (keeping this)
 export const templates = pgTable("templates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -68,13 +68,13 @@ export const insertEpisodeSchema = createInsertSchema(episodes)
     hasOutro: true,
     status: true,
     publishDate: true,
+    introMusicUrl: true,
+    outroMusicUrl: true,
     transcript: true,
     transcriptionStatus: true,
     showNotes: true,
     aiGeneratedTags: true,
     aiGeneratedSummary: true,
-    introMusicUrl: true,
-    outroMusicUrl: true,
     titleSuggestions: true
   })
   .extend({
