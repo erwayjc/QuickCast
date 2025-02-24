@@ -68,8 +68,8 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
   const renderEpisodeList = (episodeList: EpisodeType[], title: string) => (
     <div className="mb-8">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
-      <div className={view === 'grid' 
-        ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" 
+      <div className={view === 'grid'
+        ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
         : "space-y-4"
       }>
         {episodeList.map((episode) => (
@@ -79,7 +79,7 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
             duration={`${Math.floor(episode.duration / 60)}:${(episode.duration % 60).toString().padStart(2, '0')}`}
             date={format(new Date(episode.createdAt), 'MMM d, yyyy')}
             isDraft={episode.status === 'draft'}
-            transcriptionStatus={episode.transcriptionStatus}
+            transcriptionStatus={episode.transcriptionStatus || 'pending'}
             onPlay={() => onPlay(episode)}
             onTranscribe={() => transcribeEpisode.mutate(episode.id)}
             onDelete={() => onDelete(episode.id)}

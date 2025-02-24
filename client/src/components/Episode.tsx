@@ -1,11 +1,12 @@
 import React from 'react';
+import { type transcriptionStatus } from '@shared/schema';
 
 interface EpisodeProps {
   title: string;
   duration: string;
   date: string;
   isDraft?: boolean;
-  transcriptionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+  transcriptionStatus?: (typeof transcriptionStatus.enumValues)[number];
   onPlay?: () => void;
   onTranscribe?: () => void;
   onDelete?: () => void;

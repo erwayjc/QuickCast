@@ -14,11 +14,20 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
       ? audioUrl 
       : `${process.env.REPL_URL}${audioUrl}`;
 
-    console.log('Starting transcription for URL:', fullUrl);
+    console.log('[Transcription] Starting transcription for URL:', fullUrl);
+    console.log('[Transcription] Environment:', {
+      REPL_URL: process.env.REPL_URL,
+      audioUrl: audioUrl
+    });
 
     // Download the audio file first
     const response = await new Promise<Buffer>((resolve, reject) => {
       https.get(fullUrl, (res) => {
+        console.log('[Transcription] Audio download response:', {
+          statusCode: res.statusCode,
+          headers: res.headers
+        });
+
         if (res.statusCode !== 200) {
           reject(new Error(`Failed to download audio: ${res.statusCode}`));
           return;
@@ -28,30 +37,46 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
         res.on('data', (chunk) => chunks.push(chunk));
         res.on('end', () => resolve(Buffer.concat(chunks)));
         res.on('error', reject);
-      }).on('error', reject);
+      }).on('error', (err) => {
+        console.error('[Transcription] Audio download error:', err);
+        reject(err);
+      });
     });
 
-    console.log('Audio file downloaded, size:', response.length, 'bytes');
+    console.log('[Transcription] Audio file downloaded, size:', response.length, 'bytes');
 
     // Create a temporary file
     const tempFilePath = `/tmp/audio-${Date.now()}.webm`;
     fs.writeFileSync(tempFilePath, response);
 
-    console.log('Temporary file created:', tempFilePath);
+    console.log('[Transcription] Temporary file created:', tempFilePath);
+    console.log('[Transcription] File exists:', fs.existsSync(tempFilePath));
+    console.log('[Transcription] File size:', fs.statSync(tempFilePath).size);
 
     try {
+      console.log('[Transcription] Initiating OpenAI API call...');
       const transcription = await openai.audio.transcriptions.create({
         file: fs.createReadStream(tempFilePath),
         model: "whisper-1",
+        language: "en",
         response_format: "text"
       });
 
-      console.log('Transcription completed successfully');
+      console.log('[Transcription] OpenAI API call successful');
 
       // Clean up temp file
       fs.unlinkSync(tempFilePath);
 
-      return transcription.text;
+      return transcription;
+    } catch (error) {
+      console.error('[Transcription] OpenAI API error:', error);
+      if (error instanceof Error) {
+        console.error('[Transcription] OpenAI API error details:', {
+          message: error.message,
+          stack: error.stack
+        });
+      }
+      throw error;
     } finally {
       // Ensure temp file is cleaned up even if transcription fails
       if (fs.existsSync(tempFilePath)) {
@@ -59,10 +84,12 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
       }
     }
   } catch (error) {
-    console.error("Failed to transcribe audio:", error);
+    console.error("[Transcription] Top-level error:", error);
     if (error instanceof Error) {
-      console.error("Error details:", error.message);
-      console.error("Error stack:", error.stack);
+      console.error("[Transcription] Error details:", {
+        message: error.message,
+        stack: error.stack
+      });
     }
     throw new Error("Failed to transcribe audio: " + (error instanceof Error ? error.message : 'Unknown error'));
   }
@@ -176,20 +203,31 @@ export async function generateSummary(transcript: string): Promise<string> {
 }
 
 export async function processEpisode(episode: Episode): Promise<Partial<Episode>> {
-  const transcript = await transcribeAudio(episode.audioUrl);
-  const [titleSuggestions, showNotes, tags, summary] = await Promise.all([
-    generateTitleSuggestions(transcript),
-    generateShowNotes(transcript),
-    generateTags(transcript),
-    generateSummary(transcript)
-  ]);
+  try {
+    console.log('[ProcessEpisode] Starting processing for episode:', episode.id);
 
-  return {
-    transcript,
-    showNotes,
-    aiGeneratedTags: tags,
-    aiGeneratedSummary: summary,
-    titleSuggestions: titleSuggestions,
-    transcriptionStatus: 'completed' as const
-  };
+    const transcript = await transcribeAudio(episode.audioUrl);
+    console.log('[ProcessEpisode] Transcription completed, length:', transcript.length);
+
+    console.log('[ProcessEpisode] Starting parallel AI processing tasks');
+    const [titleSuggestions, showNotes, tags, summary] = await Promise.all([
+      generateTitleSuggestions(transcript),
+      generateShowNotes(transcript),
+      generateTags(transcript),
+      generateSummary(transcript)
+    ]);
+    console.log('[ProcessEpisode] AI processing tasks completed');
+
+    return {
+      transcript,
+      showNotes,
+      aiGeneratedTags: tags,
+      aiGeneratedSummary: summary,
+      titleSuggestions,
+      transcriptionStatus: 'completed' as const
+    };
+  } catch (error) {
+    console.error('[ProcessEpisode] Error processing episode:', error);
+    throw error;
+  }
 }

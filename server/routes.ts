@@ -59,7 +59,7 @@ async function transcribeAudio(audioPath: string): Promise<string> {
     });
 
     console.log("Transcription completed successfully");
-    return transcription;
+    return transcription.text; //Fixed return type to string
   } catch (error) {
     console.error("Transcription failed:", error);
     throw error;
@@ -159,16 +159,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const episode = await storage.getEpisode(Number(req.params.id));
       if (!episode) {
+        console.log('[Route] Episode not found:', req.params.id);
         return res.status(404).json({ message: "Episode not found" });
       }
 
       if (!episode.audioUrl) {
+        console.log('[Route] No audio URL found for episode:', episode.id);
         return res
           .status(400)
           .json({ message: "No audio file found for episode" });
       }
 
-      console.log("Starting transcription process for episode:", episode.id);
+      console.log('[Route] Starting transcription process for episode:', {
+        id: episode.id,
+        audioUrl: episode.audioUrl,
+        currentStatus: episode.transcriptionStatus
+      });
 
       // Update episode status to show processing
       await storage.updateEpisode(episode.id, {
@@ -182,8 +188,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? episode.audioUrl.slice(1)
           : episode.audioUrl;
 
+        console.log('[Route] Processing audio path:', audioPath);
+
         // Get transcription
         const transcript = await transcribeAudio(audioPath);
+        console.log('[Route] Transcription completed successfully, length:', transcript.length);
 
         // Update with transcription results
         const updatedEpisode = await storage.updateEpisode(episode.id, {
@@ -191,10 +200,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           transcriptionStatus: "completed",
         });
 
-        console.log("Transcription completed for episode:", episode.id);
+        console.log('[Route] Episode updated with transcription:', {
+          id: episode.id,
+          newStatus: 'completed',
+          hasTranscript: !!updatedEpisode?.transcript
+        });
+
         return res.json(updatedEpisode);
       } catch (error) {
-        console.error("Transcription failed:", error);
+        console.error('[Route] Transcription failed:', {
+          episodeId: episode.id,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
 
         // Update status to failed
         await storage.updateEpisode(episode.id, {
@@ -208,7 +225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
     } catch (error) {
-      console.error("Error in transcription endpoint:", error);
+      console.error("[Route] Error in transcription endpoint:", error);
       return res.status(500).json({ message: "Internal server error" });
     }
   });

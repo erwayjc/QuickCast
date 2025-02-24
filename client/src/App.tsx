@@ -9,6 +9,57 @@ import Templates from "@/pages/templates";
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@/hooks/use-auth";
 
+// Types for our context
+interface AudioContextType {
+  transcribe: (id: number) => Promise<void>;
+  isTranscribing: boolean;
+}
+
+// Create an audio context to share player state
+import { createContext, useContext, useState } from 'react';
+export const AudioContext = createContext<AudioContextType | null>(null);
+
+export function AudioProvider({ children }: { children: React.ReactNode }) {
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
+  const transcribe = async (id: number) => {
+    try {
+      setIsTranscribing(true);
+      const response = await fetch(`/api/episodes/${id}/transcribe`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Transcription failed');
+      }
+
+      // Invalidate the episodes query to refresh the data
+      queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
+    } catch (error) {
+      console.error('Transcription error:', error);
+      throw error;
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  return (
+    <AudioContext.Provider value={{ transcribe, isTranscribing }}>
+      {children}
+    </AudioContext.Provider>
+  );
+}
+
+// Hook to use the audio context
+export function useAudio() {
+  const context = useContext(AudioContext);
+  if (!context) {
+    throw new Error('useAudio must be used within an AudioProvider');
+  }
+  return context;
+}
+
 // Protected Route Component
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const [, setLocation] = useLocation();
@@ -52,8 +103,10 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router />
-      <Toaster />
+      <AudioProvider>
+        <Router />
+        <Toaster />
+      </AudioProvider>
     </QueryClientProvider>
   );
 }
