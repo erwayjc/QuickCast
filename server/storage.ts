@@ -1,4 +1,4 @@
-import { episodes, type Episode, type InsertEpisode } from "@shared/schema";
+import { episodes, templates, type Episode, type InsertEpisode, type Template } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
@@ -9,6 +9,7 @@ export interface IStorage {
   updateEpisode(id: number, data: Partial<Episode>): Promise<Episode | undefined>;
   publishEpisode(id: number): Promise<Episode | undefined>;
   deleteEpisode(id: number): Promise<void>;
+  getTemplate(id: number): Promise<Template | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -49,6 +50,11 @@ export class DatabaseStorage implements IStorage {
 
   async deleteEpisode(id: number): Promise<void> {
     await db.delete(episodes).where(eq(episodes.id, id));
+  }
+
+  async getTemplate(id: number): Promise<Template | undefined> {
+    const [template] = await db.select().from(templates).where(eq(templates.id, id));
+    return template;
   }
 }
 

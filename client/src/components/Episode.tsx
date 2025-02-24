@@ -121,6 +121,40 @@ const Episode: React.FC<EpisodeProps> = ({
             <span className="mr-2">🗑️</span>
             Delete
           </Button>
+          <Button
+            onClick={() => {
+              console.log('Creating test template...');
+              fetch('/api/templates', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  name: "Test Intro",
+                  type: "intro",
+                  backgroundMusic: "/uploads/test-intro.mp3"
+                })
+              })
+              .then(res => res.json())
+              .then(data => {
+                console.log('Template created:', data);
+                // Now let's check all templates
+                return fetch('/api/templates');
+              })
+              .then(res => res.json())
+              .then(templates => {
+                console.log('All templates:', templates);
+              })
+              .catch(err => {
+                console.error('Error:', err);
+              });
+            }}
+            variant="outline"
+            size="sm"
+          >
+            <span className="mr-2">🧪</span>
+            Test Templates
+          </Button>
         </div>
 
         <div className="mt-4">
