@@ -1,5 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { type transcriptionStatus } from '@shared/schema';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface EpisodeProps {
   title: string;
@@ -7,9 +11,15 @@ interface EpisodeProps {
   date: string;
   isDraft?: boolean;
   transcriptionStatus?: (typeof transcriptionStatus.enumValues)[number];
+  transcript?: string | null;
+  showNotes?: string | null;
+  aiGeneratedTags?: string[] | null;
+  aiGeneratedSummary?: string | null;
+  titleSuggestions?: string[] | null;
   onPlay?: () => void;
   onTranscribe?: () => void;
   onDelete?: () => void;
+  onApplyTitleSuggestion?: (index: number) => void;
 }
 
 const Episode: React.FC<EpisodeProps> = ({
@@ -18,10 +28,18 @@ const Episode: React.FC<EpisodeProps> = ({
   date,
   isDraft = false,
   transcriptionStatus = 'pending',
+  transcript,
+  showNotes,
+  aiGeneratedTags,
+  aiGeneratedSummary,
+  titleSuggestions,
   onPlay,
   onTranscribe,
-  onDelete
+  onDelete,
+  onApplyTitleSuggestion
 }) => {
+  const [activeTab, setActiveTab] = useState<string>('overview');
+
   return (
     <div className="rounded-lg border border-gray-200 p-4 mb-4">
       <div className="flex flex-col gap-2">
@@ -56,36 +74,109 @@ const Episode: React.FC<EpisodeProps> = ({
         </div>
 
         <div className="flex gap-2 mt-2">
-          <button
+          <Button
             onClick={onPlay}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-            type="button"
+            variant="secondary"
+            size="sm"
           >
-            <span>▶️</span>
+            <span className="mr-2">▶️</span>
             Play
-          </button>
+          </Button>
 
           {transcriptionStatus !== 'completed' && (
-            <button
+            <Button
               onClick={onTranscribe}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg transition-colors"
-              type="button"
+              variant="secondary"
+              size="sm"
               disabled={transcriptionStatus === 'processing'}
             >
-              <span>📝</span>
+              <span className="mr-2">📝</span>
               {transcriptionStatus === 'processing' ? 'Transcribing...' : 'Transcribe'}
-            </button>
+            </Button>
           )}
 
-          <button
+          <Button
             onClick={onDelete}
-            className="flex items-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg transition-colors"
-            type="button"
+            variant="destructive"
+            size="sm"
           >
-            <span>🗑️</span>
+            <span className="mr-2">🗑️</span>
             Delete
-          </button>
+          </Button>
         </div>
+
+        {transcriptionStatus === 'completed' && (
+          <div className="mt-4">
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="transcript">Transcript</TabsTrigger>
+                <TabsTrigger value="showNotes">Show Notes</TabsTrigger>
+                <TabsTrigger value="tags">Tags</TabsTrigger>
+                <TabsTrigger value="titles">Titles</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview">
+                {aiGeneratedSummary && (
+                  <div className="mt-2 text-sm text-gray-600">
+                    <h4 className="font-semibold mb-1">Summary</h4>
+                    <p>{aiGeneratedSummary}</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="transcript">
+                {transcript && (
+                  <ScrollArea className="h-[200px] w-full rounded-md border p-4">
+                    <div className="text-sm whitespace-pre-wrap">{transcript}</div>
+                  </ScrollArea>
+                )}
+              </TabsContent>
+
+              <TabsContent value="showNotes">
+                {showNotes && (
+                  <ScrollArea className="h-[200px] w-full rounded-md border p-4">
+                    <div className="text-sm whitespace-pre-wrap">{showNotes}</div>
+                  </ScrollArea>
+                )}
+              </TabsContent>
+
+              <TabsContent value="tags">
+                {aiGeneratedTags && aiGeneratedTags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 p-4">
+                    {aiGeneratedTags.map((tag, index) => (
+                      <span
+                        key={index}
+                        className="bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded-full"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="titles">
+                {titleSuggestions && titleSuggestions.length > 0 && (
+                  <div className="space-y-2 p-4">
+                    {titleSuggestions.map((suggestion, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <span className="text-sm">{suggestion}</span>
+                        <Button
+                          onClick={() => onApplyTitleSuggestion?.(index)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          Apply
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
+        )}
       </div>
     </div>
   );
