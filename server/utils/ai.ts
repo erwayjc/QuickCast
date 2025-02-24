@@ -4,59 +4,46 @@ import https from "https";
 import { Readable } from "stream";
 import { URL } from "url";
 import fs from "fs";
+import path from "path";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+import fetch from "node-fetch";
+
+
 export async function transcribeAudio(audioUrl: string): Promise<string> {
   try {
-    // Get the full URL if it's a relative path
-    const fullUrl = audioUrl.startsWith('http') 
-      ? audioUrl 
-      : `${process.env.REPL_URL}${audioUrl}`;
+    console.log('[Transcription] Starting transcription for URL:', audioUrl);
 
-    console.log('[Transcription] Starting transcription for URL:', fullUrl);
-    console.log('[Transcription] Environment:', {
-      REPL_URL: process.env.REPL_URL,
-      audioUrl: audioUrl
-    });
+    let audioFilePath: string;
 
-    // Download the audio file first
-    const response = await new Promise<Buffer>((resolve, reject) => {
-      https.get(fullUrl, (res) => {
-        console.log('[Transcription] Audio download response:', {
-          statusCode: res.statusCode,
-          headers: res.headers
-        });
+    if (audioUrl.startsWith('/uploads/')) {
+      // For local files in the uploads directory
+      audioFilePath = path.join(process.cwd(), audioUrl);
+      console.log('[Transcription] Using local file path:', audioFilePath);
 
-        if (res.statusCode !== 200) {
-          reject(new Error(`Failed to download audio: ${res.statusCode}`));
-          return;
-        }
+      if (!fs.existsSync(audioFilePath)) {
+        throw new Error(`Audio file not found at path: ${audioFilePath}`);
+      }
+    } else if (audioUrl.startsWith('http')) {
+      // For remote URLs, download the file first
+      const response = await fetch(audioUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download audio: ${response.status}`);
+      }
 
-        const chunks: Buffer[] = [];
-        res.on('data', (chunk) => chunks.push(chunk));
-        res.on('end', () => resolve(Buffer.concat(chunks)));
-        res.on('error', reject);
-      }).on('error', (err) => {
-        console.error('[Transcription] Audio download error:', err);
-        reject(err);
-      });
-    });
-
-    console.log('[Transcription] Audio file downloaded, size:', response.length, 'bytes');
-
-    // Create a temporary file
-    const tempFilePath = `/tmp/audio-${Date.now()}.webm`;
-    fs.writeFileSync(tempFilePath, response);
-
-    console.log('[Transcription] Temporary file created:', tempFilePath);
-    console.log('[Transcription] File exists:', fs.existsSync(tempFilePath));
-    console.log('[Transcription] File size:', fs.statSync(tempFilePath).size);
+      const buffer = await response.arrayBuffer();
+      audioFilePath = `/tmp/audio-${Date.now()}.webm`;
+      fs.writeFileSync(audioFilePath, Buffer.from(buffer));
+      console.log('[Transcription] Downloaded remote file to:', audioFilePath);
+    } else {
+      throw new Error('Invalid audio URL format');
+    }
 
     try {
       console.log('[Transcription] Initiating OpenAI API call...');
       const transcription = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(tempFilePath),
+        file: fs.createReadStream(audioFilePath),
         model: "whisper-1",
         language: "en",
         response_format: "text"
@@ -64,33 +51,18 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
 
       console.log('[Transcription] OpenAI API call successful');
 
-      // Clean up temp file
-      fs.unlinkSync(tempFilePath);
+      // Clean up temp file if it was downloaded
+      if (audioFilePath.startsWith('/tmp/')) {
+        fs.unlinkSync(audioFilePath);
+      }
 
       return transcription;
     } catch (error) {
       console.error('[Transcription] OpenAI API error:', error);
-      if (error instanceof Error) {
-        console.error('[Transcription] OpenAI API error details:', {
-          message: error.message,
-          stack: error.stack
-        });
-      }
       throw error;
-    } finally {
-      // Ensure temp file is cleaned up even if transcription fails
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
-      }
     }
   } catch (error) {
-    console.error("[Transcription] Top-level error:", error);
-    if (error instanceof Error) {
-      console.error("[Transcription] Error details:", {
-        message: error.message,
-        stack: error.stack
-      });
-    }
+    console.error("[Transcription] Error:", error);
     throw new Error("Failed to transcribe audio: " + (error instanceof Error ? error.message : 'Unknown error'));
   }
 }
