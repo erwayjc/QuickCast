@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import { type transcriptionStatus } from '@shared/schema';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+interface Template {
+  id: number;
+  name: string;
+  type: 'intro' | 'outro';
+}
 
 interface EpisodeProps {
   title: string;
@@ -16,9 +22,12 @@ interface EpisodeProps {
   aiGeneratedTags?: string[] | null;
   aiGeneratedSummary?: string | null;
   titleSuggestions?: string[] | null;
+  templates?: Template[];
+  isProcessing?: boolean;
   onPlay?: () => void;
   onTranscribe?: () => void;
   onDelete?: () => void;
+  onProcess?: (introId?: number, outroId?: number) => void;
   onApplyTitleSuggestion?: (index: number) => void;
 }
 
@@ -33,12 +42,16 @@ const Episode: React.FC<EpisodeProps> = ({
   aiGeneratedTags,
   aiGeneratedSummary,
   titleSuggestions,
+  templates = [],
+  isProcessing = false,
   onPlay,
   onTranscribe,
   onDelete,
+  onProcess,
   onApplyTitleSuggestion
 }) => {
-  const [activeTab, setActiveTab] = useState<string>('overview');
+  const [selectedIntro, setSelectedIntro] = useState<string>();
+  const [selectedOutro, setSelectedOutro] = useState<string>();
 
   return (
     <div className="rounded-lg border border-gray-200 p-4 mb-4">
@@ -58,6 +71,11 @@ const Episode: React.FC<EpisodeProps> = ({
           {transcriptionStatus === 'completed' && (
             <span className="bg-green-100 text-green-800 text-sm px-2 py-1 rounded">
               Transcribed
+            </span>
+          )}
+          {isProcessing && (
+            <span className="bg-purple-100 text-purple-800 text-sm px-2 py-1 rounded animate-pulse">
+              Processing Audio...
             </span>
           )}
         </div>
@@ -105,78 +123,134 @@ const Episode: React.FC<EpisodeProps> = ({
           </Button>
         </div>
 
-        {transcriptionStatus === 'completed' && (
-          <div className="mt-4">
-            <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="transcript">Transcript</TabsTrigger>
-                <TabsTrigger value="showNotes">Show Notes</TabsTrigger>
-                <TabsTrigger value="tags">Tags</TabsTrigger>
-                <TabsTrigger value="titles">Titles</TabsTrigger>
-              </TabsList>
+        <div className="mt-4">
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid w-full grid-cols-6">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="transcript">Transcript</TabsTrigger>
+              <TabsTrigger value="showNotes">Show Notes</TabsTrigger>
+              <TabsTrigger value="tags">Tags</TabsTrigger>
+              <TabsTrigger value="titles">Titles</TabsTrigger>
+              <TabsTrigger value="process">Process</TabsTrigger>
+            </TabsList>
 
-              <TabsContent value="overview">
-                {aiGeneratedSummary && (
-                  <div className="mt-2 text-sm text-gray-600">
-                    <h4 className="font-semibold mb-1">Summary</h4>
-                    <p>{aiGeneratedSummary}</p>
-                  </div>
-                )}
-              </TabsContent>
+            <TabsContent value="overview">
+              {aiGeneratedSummary && (
+                <div className="mt-2 text-sm text-gray-600">
+                  <h4 className="font-semibold mb-1">Summary</h4>
+                  <p>{aiGeneratedSummary}</p>
+                </div>
+              )}
+            </TabsContent>
 
-              <TabsContent value="transcript">
-                {transcript && (
-                  <ScrollArea className="h-[200px] w-full rounded-md border p-4">
-                    <div className="text-sm whitespace-pre-wrap">{transcript}</div>
-                  </ScrollArea>
-                )}
-              </TabsContent>
+            <TabsContent value="transcript">
+              {transcript && (
+                <ScrollArea className="h-[200px] w-full rounded-md border p-4">
+                  <div className="text-sm whitespace-pre-wrap">{transcript}</div>
+                </ScrollArea>
+              )}
+            </TabsContent>
 
-              <TabsContent value="showNotes">
-                {showNotes && (
-                  <ScrollArea className="h-[200px] w-full rounded-md border p-4">
-                    <div className="text-sm whitespace-pre-wrap">{showNotes}</div>
-                  </ScrollArea>
-                )}
-              </TabsContent>
+            <TabsContent value="showNotes">
+              {showNotes && (
+                <ScrollArea className="h-[200px] w-full rounded-md border p-4">
+                  <div className="text-sm whitespace-pre-wrap">{showNotes}</div>
+                </ScrollArea>
+              )}
+            </TabsContent>
 
-              <TabsContent value="tags">
-                {aiGeneratedTags && aiGeneratedTags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 p-4">
-                    {aiGeneratedTags.map((tag, index) => (
-                      <span
-                        key={index}
-                        className="bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded-full"
+            <TabsContent value="tags">
+              {aiGeneratedTags && aiGeneratedTags.length > 0 && (
+                <div className="flex flex-wrap gap-2 p-4">
+                  {aiGeneratedTags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded-full"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="titles">
+              {titleSuggestions && titleSuggestions.length > 0 && (
+                <div className="space-y-2 p-4">
+                  {titleSuggestions.map((suggestion, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <span className="text-sm">{suggestion}</span>
+                      <Button
+                        onClick={() => onApplyTitleSuggestion?.(index)}
+                        variant="outline"
+                        size="sm"
                       >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
+                        Apply
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
 
-              <TabsContent value="titles">
-                {titleSuggestions && titleSuggestions.length > 0 && (
-                  <div className="space-y-2 p-4">
-                    {titleSuggestions.map((suggestion, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <span className="text-sm">{suggestion}</span>
-                        <Button
-                          onClick={() => onApplyTitleSuggestion?.(index)}
-                          variant="outline"
-                          size="sm"
-                        >
-                          Apply
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
+            <TabsContent value="process">
+              <div className="space-y-4 p-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Intro Template</label>
+                  <Select
+                    value={selectedIntro}
+                    onValueChange={setSelectedIntro}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select intro..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates
+                        .filter(t => t.type === 'intro')
+                        .map(template => (
+                          <SelectItem key={template.id} value={template.id.toString()}>
+                            {template.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Outro Template</label>
+                  <Select
+                    value={selectedOutro}
+                    onValueChange={setSelectedOutro}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select outro..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates
+                        .filter(t => t.type === 'outro')
+                        .map(template => (
+                          <SelectItem key={template.id} value={template.id.toString()}>
+                            {template.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  onClick={() => onProcess?.(
+                    selectedIntro ? Number(selectedIntro) : undefined,
+                    selectedOutro ? Number(selectedOutro) : undefined
+                  )}
+                  className="w-full"
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? 'Processing...' : 'Process Episode'}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </div>
   );

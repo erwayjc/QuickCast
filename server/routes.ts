@@ -268,3 +268,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   return httpServer;
 }
+// Add this to your routes.ts file
+app.post("/api/episodes/:id/process", async (req, res) => {
+  try {
+    const episode = await storage.getEpisode(Number(req.params.id));
+    if (!episode) {
+      return res.status(404).json({ message: "Episode not found" });
+    }
+
+    const { introId, outroId } = req.body;
+
+    // Get intro/outro templates if provided
+    const intro = introId ? await storage.getTemplate(introId) : null;
+    const outro = outroId ? await storage.getTemplate(outroId) : null;
+
+    console.log('Processing episode with:', {
+      episodeId: episode.id,
+      introId,
+      outroId
+    });
+
+    // Generate output filename
+    const outputFilename = `processed-${episode.id}-${Date.now()}.mp3`;
+    const outputPath = path.join(process.cwd(), 'uploads', outputFilename);
+
+    // Process audio
+    await concatenateAudio({
+      introPath: intro?.backgroundMusic ? path.join(process.cwd(), intro.backgroundMusic) : null,
+      mainAudioPath: path.join(process.cwd(), episode.audioUrl.replace(/^\//, '')),
+      outroPath: outro?.backgroundMusic ? path.join(process.cwd(), outro.backgroundMusic) : null,
+      outputPath
+    });
+
+    // Update episode with processed audio
+    const updatedEpisode = await storage.updateEpisode(episode.id, {
+      processedAudioUrl: `/uploads/${outputFilename}`,
+      hasIntro: !!intro,
+      hasOutro: !!outro
+    });
+
+    return res.json(updatedEpisode);
+  } catch (error) {
+    console.error("Failed to process audio:", error);
+    return res.status(500).json({ 
+      message: "Failed to process audio",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+});

@@ -12,10 +12,22 @@ interface EpisodeListProps {
   view: 'grid' | 'list';
 }
 
+interface Template {
+  id: number;
+  name: string;
+  type: 'intro' | 'outro';
+}
+
 export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
   const { data: episodes, isLoading } = useQuery<EpisodeType[]>({
     queryKey: ['/api/episodes']
   });
+
+  const { data: templates } = useQuery<Template[]>({
+    queryKey: ['/api/templates'],
+    select: (data) => data || []
+  });
+
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -75,6 +87,39 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
     }
   });
 
+  const processEpisode = useMutation({
+    mutationFn: async ({ id, introId, outroId }: { id: number; introId?: number; outroId?: number }) => {
+      const response = await apiRequest('POST', `/api/episodes/${id}/process`, {
+        body: {
+          introId,
+          outroId
+        }
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to process episode');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
+      toast({
+        title: "Episode Processing Started",
+        description: "Your episode is being processed with the selected intro and outro.",
+        duration: 5000,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Processing Failed",
+        description: error.message || "Unable to process episode. Please try again later.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    }
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-40">
@@ -114,9 +159,13 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
             aiGeneratedTags={episode.aiGeneratedTags}
             aiGeneratedSummary={episode.aiGeneratedSummary}
             titleSuggestions={episode.titleSuggestions}
+            templates={templates}
+            isProcessing={processEpisode.isPending}
             onPlay={() => onPlay(episode)}
             onTranscribe={() => transcribeEpisode.mutate(episode.id)}
             onDelete={() => onDelete(episode.id)}
+            onProcess={(introId, outroId) => 
+              processEpisode.mutate({ id: episode.id, introId, outroId })}
             onApplyTitleSuggestion={(titleIndex: number) => 
               applyTitleSuggestion.mutate({ id: episode.id, titleIndex })}
           />
