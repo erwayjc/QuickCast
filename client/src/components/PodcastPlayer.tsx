@@ -16,7 +16,7 @@ interface PlayerProps {
   onTranscribe?: (id: number) => void;
 }
 
-export function Player({ episode, onTranscribe }: PlayerProps) {
+export function PodcastPlayer({ episode, onTranscribe }: PlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
 
@@ -93,4 +93,5 @@ export function Player({ episode, onTranscribe }: PlayerProps) {
   );
 }
 
-export default Player;
+// Default export for the component
+export default PodcastPlayer;

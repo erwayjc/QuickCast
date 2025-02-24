@@ -96,3 +96,5 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
     </div>
   );
 }
+
+export default EpisodeList;
