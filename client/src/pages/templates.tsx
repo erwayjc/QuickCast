@@ -1,198 +1,230 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Slider } from '@/components/ui/slider';
-import { useToast } from '@/hooks/use-toast';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { PlayCircle, PauseCircle, Plus, Save, Trash2 } from 'lucide-react';
-import type { Template } from '@shared/schema';
-import { apiRequest } from '@/lib/queryClient';
-import { useMusicGenerator, type MusicPattern } from '@/lib/musicGenerator';
+import React, { useState, useEffect } from 'react';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import { useAudioPlayer } from "@/hooks/useAudioPlayer";
+import { FileMusic, Trash2, Play, Download } from "lucide-react";
 
-const DEFAULT_PATTERNS: MusicPattern[] = [
-  { name: 'Upbeat Intro', pattern: [1, 0, 1, 0, 1, 1, 0, 1], bpm: 120 },
-  { name: 'Mellow Outro', pattern: [1, 0, 0, 1, 0, 0, 1, 0], bpm: 90 },
-  { name: 'Professional', pattern: [1, 1, 0, 0, 1, 0, 1, 0], bpm: 100 },
-];
+interface AudioFile {
+  id: string;
+  name: string;
+  file: File;
+  type: 'intro' | 'outro';
+}
 
-export default function TemplatesPage() {
-  const [selectedPattern, setSelectedPattern] = useState<MusicPattern>(DEFAULT_PATTERNS[0]);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(50);
+export default function Templates() {
+  const [activeTab, setActiveTab] = useState<'intro' | 'outro'>('intro');
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<Record<'intro' | 'outro', AudioFile[]>>({ intro: [], outro: [] });
+  const [fileName, setFileName] = useState('');
+
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const musicGenerator = useMusicGenerator();
+  const { playAudio } = useAudioPlayer();
 
-  // Fetch templates
-  const { data: templates, isLoading } = useQuery<Template[]>({
-    queryKey: ['/api/templates']
-  });
+  useEffect(() => {
+    loadAudioFiles();
+  }, []);
 
-  // Add template mutation
-  const addTemplate = useMutation({
-    mutationFn: async (template: Omit<Template, 'id' | 'createdAt' | 'updatedAt'>) => {
-      const response = await apiRequest('POST', '/api/templates', template);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/templates'] });
+  const handleSaveAudioFile = async () => {
+    if (!audioFile || !fileName) {
       toast({
-        title: 'Success',
-        description: 'Template created successfully'
+        title: "Required fields missing",
+        description: "Please provide both an audio file and a name",
+        variant: "destructive",
       });
-    },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to create template',
-        variant: 'destructive'
-      });
+      return;
     }
-  });
 
-  const togglePlay = () => {
-    if (!musicGenerator) return;
+    try {
+      const newAudioFile: AudioFile = {
+        id: Date.now().toString(),
+        name: fileName,
+        file: audioFile,
+        type: activeTab
+      };
 
-    if (isPlaying) {
-      musicGenerator.stop();
-      setIsPlaying(false);
-    } else {
-      musicGenerator.playPattern(selectedPattern);
-      setIsPlaying(true);
+      setUploadedFiles(prev => ({
+        ...prev,
+        [activeTab]: [...prev[activeTab], newAudioFile]
+      }));
+
+      toast({
+        title: "Success",
+        description: "Audio file saved successfully",
+      });
+
+      // Reset form
+      setFileName('');
+      setAudioFile(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save audio file",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleVolumeChange = (value: number[]) => {
-    if (!musicGenerator) return;
-    setVolume(value[0]);
-    musicGenerator.setVolume(value[0]);
+  const handleDeleteFile = async (id: string, type: 'intro' | 'outro') => {
+    try {
+      setUploadedFiles(prev => ({
+        ...prev,
+        [type]: prev[type].filter(file => file.id !== id)
+      }));
+
+      toast({
+        title: "Success",
+        description: "File deleted successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('audio/')) {
+        toast({
+          title: "Invalid file type",
+          description: "Please upload an audio file",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setAudioFile(file);
+      // Set a default name from the file name (without extension)
+      setFileName(file.name.split('.').slice(0, -1).join('.'));
+      toast({
+        title: "File selected",
+        description: file.name,
+      });
+    }
+  };
+
+  // Placeholder function to be implemented with actual API calls
+  const loadAudioFiles = async () => {
+    // Implementation pending
   };
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Podcast Templates</h1>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          New Template
-        </Button>
-      </div>
+    <div className="container mx-auto p-6 space-y-8">
+      <h1 className="text-3xl font-bold">Audio Templates</h1>
 
-      <Tabs defaultValue="intro">
-        <TabsList className="mb-8">
-          <TabsTrigger value="intro">Intro Templates</TabsTrigger>
-          <TabsTrigger value="outro">Outro Templates</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'intro' | 'outro')}>
+        <TabsList>
+          <TabsTrigger value="intro">Intro Audio</TabsTrigger>
+          <TabsTrigger value="outro">Outro Audio</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="intro">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Music Generator</CardTitle>
-              </CardHeader>
-              <CardContent>
+        <div className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload Audio</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Input
+                type="file"
+                accept="audio/*"
+                onChange={handleFileChange}
+                className="mb-4"
+              />
+              {audioFile && (
                 <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Pattern</label>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      {DEFAULT_PATTERNS.map((pattern) => (
-                        <Button
-                          key={pattern.name}
-                          variant={selectedPattern.name === pattern.name ? "secondary" : "outline"}
-                          onClick={() => setSelectedPattern(pattern)}
-                          className="justify-start"
-                        >
-                          {pattern.name}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">Volume</label>
-                    <Slider
-                      value={[volume]}
-                      onValueChange={handleVolumeChange}
-                      max={100}
-                      step={1}
-                      className="mt-2"
-                    />
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={togglePlay}
-                  >
-                    {isPlaying ? (
-                      <PauseCircle className="h-4 w-4" />
-                    ) : (
-                      <PlayCircle className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Script Editor</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Input
-                    placeholder="Template name"
-                  />
-                  <Textarea
-                    placeholder="Enter your intro script here..."
-                    className="min-h-[200px]"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline">
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Template
+                  <div className="flex items-center gap-2">
+                    <FileMusic className="h-4 w-4" />
+                    <span className="flex-1 truncate">{audioFile.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setAudioFile(null);
+                        setFileName('');
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
+                  <Input
+                    placeholder="Enter a name for this audio"
+                    value={fileName}
+                    onChange={(e) => setFileName(e.target.value)}
+                  />
+                  <Button 
+                    className="w-full"
+                    onClick={handleSaveAudioFile}
+                  >
+                    Save Audio Template
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Saved Templates */}
-          <div className="mt-8">
-            <h2 className="text-xl font-semibold mb-4">Saved Intro Templates</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {templates?.filter(t => t.type === 'intro').map((template) => (
-                <Card key={template.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="font-medium">{template.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Duration: {Math.floor(template.duration / 60)}:{(template.duration % 60).toString().padStart(2, '0')}
-                        </p>
-                      </div>
-                      <Button variant="ghost" size="icon">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <p className="text-sm text-muted-foreground line-clamp-3">
-                      {template.script}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="outro">
-          {/* Similar structure as intro but for outros */}
-        </TabsContent>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </Tabs>
+
+      <div className="mt-8">
+        <h2 className="text-2xl font-semibold mb-4">
+          Saved {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Audio Files
+        </h2>
+
+        {uploadedFiles[activeTab].length === 0 ? (
+          <p className="text-muted-foreground">No audio files saved yet.</p>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {uploadedFiles[activeTab].map(file => (
+              <Card key={file.id}>
+                <CardContent className="pt-6">
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-semibold">{file.name}</h3>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteFile(file.id, activeTab)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2 mt-4">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        const url = URL.createObjectURL(file.file);
+                        playAudio(url);
+                      }}
+                    >
+                      <Play className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        const url = URL.createObjectURL(file.file);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = file.file.name;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                      }}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

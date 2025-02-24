@@ -2,9 +2,8 @@ import { FC } from 'react';
 import { Link, useLocation } from 'wouter';
 import { cn } from '@/lib/utils';
 import { 
-  Mic, 
+  Layout, 
   FileText,
-  Layout
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -43,14 +42,7 @@ export function Sidebar() {
           icon={<Layout className="w-4 h-4" />}
           isActive={location === '/'}
         >
-          Projects
-        </NavItem>
-        <NavItem 
-          href="/recordings" 
-          icon={<Mic className="w-4 h-4" />}
-          isActive={location === '/recordings'}
-        >
-          Quick recordings
+          Podcasts
         </NavItem>
         <NavItem 
           href="/templates" 
