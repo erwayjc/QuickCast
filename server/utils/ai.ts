@@ -1,76 +1,38 @@
+// utils/ai.ts
 import OpenAI from "openai";
 import { type Episode } from "@shared/schema";
-import https from "https";
-import { Readable } from "stream";
-import { URL } from "url";
-import fs from "fs";
-import path from "path";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-import fetch from "node-fetch";
-
-
-export async function transcribeAudio(audioUrl: string): Promise<string> {
+export async function generateShowNotes(transcript: string): Promise<string> {
   try {
-    console.log('[Transcription] Starting transcription for URL:', audioUrl);
+    // Fixed model name from "gpt-4o" to "gpt-4"
+    const response = await openai.chat.completions.create({
+      model: "gpt-4", // or "gpt-3.5-turbo" if you prefer
+      messages: [
+        {
+          role: "system",
+          content: "You are a professional podcast show notes writer. Create detailed, well-structured show notes from the provided transcript. Include key points, topics discussed, timestamps for important moments, and any notable quotes. Format with Markdown for better readability."
+        },
+        {
+          role: "user",
+          content: transcript
+        }
+      ],
+      max_tokens: 1000,
+    });
 
-    let audioFilePath: string;
-
-    if (audioUrl.startsWith('/uploads/')) {
-      // For local files in the uploads directory
-      audioFilePath = path.join(process.cwd(), audioUrl);
-      console.log('[Transcription] Using local file path:', audioFilePath);
-
-      if (!fs.existsSync(audioFilePath)) {
-        throw new Error(`Audio file not found at path: ${audioFilePath}`);
-      }
-    } else if (audioUrl.startsWith('http')) {
-      // For remote URLs, download the file first
-      const response = await fetch(audioUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to download audio: ${response.status}`);
-      }
-
-      const buffer = await response.arrayBuffer();
-      audioFilePath = `/tmp/audio-${Date.now()}.webm`;
-      fs.writeFileSync(audioFilePath, Buffer.from(buffer));
-      console.log('[Transcription] Downloaded remote file to:', audioFilePath);
-    } else {
-      throw new Error('Invalid audio URL format');
-    }
-
-    try {
-      console.log('[Transcription] Initiating OpenAI API call...');
-      const transcription = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(audioFilePath),
-        model: "whisper-1",
-        language: "en",
-        response_format: "text"
-      });
-
-      console.log('[Transcription] OpenAI API call successful');
-
-      // Clean up temp file if it was downloaded
-      if (audioFilePath.startsWith('/tmp/')) {
-        fs.unlinkSync(audioFilePath);
-      }
-
-      return transcription;
-    } catch (error) {
-      console.error('[Transcription] OpenAI API error:', error);
-      throw error;
-    }
+    return response.choices[0].message.content || "";
   } catch (error) {
-    console.error("[Transcription] Error:", error);
-    throw new Error("Failed to transcribe audio: " + (error instanceof Error ? error.message : 'Unknown error'));
+    console.error("Failed to generate show notes:", error);
+    throw new Error("Failed to generate show notes");
   }
 }
 
 export async function generateTitleSuggestions(transcript: string): Promise<string[]> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4", // Fixed model name
       messages: [
         {
           role: "system",
@@ -97,46 +59,10 @@ export async function generateTitleSuggestions(transcript: string): Promise<stri
   }
 }
 
-export async function generateShowNotes(transcript: string): Promise<string> {
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o", 
-      messages: [
-        {
-          role: "system",
-          content: `You are a professional podcast show notes writer. Create detailed, structured show notes from the provided transcript.
-Format the output in Markdown with:
-- A brief episode summary at the top (2-3 sentences)
-- Key topics discussed with timestamps
-- Notable quotes
-- Key takeaways or action items
-- Resources mentioned (if any)
-
-Use proper Markdown formatting including:
-- Headers (##) for sections
-- Bullet points for lists
-- > for quotes
-- *italics* for emphasis on important points`
-        },
-        {
-          role: "user",
-          content: transcript
-        }
-      ],
-      max_tokens: 1000,
-    });
-
-    return response.choices[0].message.content || "";
-  } catch (error) {
-    console.error("Failed to generate show notes:", error);
-    throw new Error("Failed to generate show notes");
-  }
-}
-
 export async function generateTags(transcript: string): Promise<string[]> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4", // Fixed model name
       messages: [
         {
           role: "system",
@@ -166,7 +92,7 @@ export async function generateTags(transcript: string): Promise<string[]> {
 export async function generateSummary(transcript: string): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4", // Fixed model name
       messages: [
         {
           role: "system",
@@ -183,6 +109,39 @@ export async function generateSummary(transcript: string): Promise<string> {
   } catch (error) {
     console.error("Failed to generate summary:", error);
     throw new Error("Failed to generate summary");
+  }
+}
+
+export async function transcribeAudio(audioUrl: string): Promise<string> {
+  try {
+    // Get the full URL if it's a relative path
+    const fullUrl = audioUrl.startsWith('http') 
+      ? audioUrl 
+      : `${process.env.REPL_URL}${audioUrl}`;
+
+    console.log('[Transcription] Starting transcription for URL:', fullUrl);
+
+    // Download the audio file first
+    const response = await fetch(fullUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download audio: ${response.status}`);
+    }
+
+    const audioBuffer = await response.arrayBuffer();
+    const audioFile = new File([audioBuffer], 'audio.mp3', { type: 'audio/mp3' });
+
+    const transcription = await openai.audio.transcriptions.create({
+      file: audioFile,
+      model: "whisper-1",
+      language: "en",
+      response_format: "text"
+    });
+
+    console.log('[Transcription] Completed successfully');
+    return transcription;
+  } catch (error) {
+    console.error("[Transcription] Error:", error);
+    throw error;
   }
 }
 
