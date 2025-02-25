@@ -51,6 +51,7 @@ export const templates = pgTable("templates", {
   musicVolume: integer("music_volume").default(50).notNull(),
   duration: integer("duration").notNull(),
   hostName: text("host_name").default('').notNull(),
+  targetAudience: text("target_audience").default(''),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull()
 });
@@ -100,7 +101,11 @@ export const insertTemplateSchema = createInsertSchema(templates)
     backgroundMusic: true,
     musicVolume: true,
     duration: true,
-    hostName: true
+    hostName: true,
+    targetAudience: true,
+  })
+  .extend({
+    targetAudience: z.string().optional().default('')
   });
 
 // Type exports
