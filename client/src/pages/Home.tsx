@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AudioRecorder } from '@/components/AudioRecorder';
+import AudioRecorder from '@/components/AudioRecorder'; 
 import { EpisodeList } from '@/components/EpisodeList';
 import { PodcastPlayer } from '@/components/PodcastPlayer';
 import { useQueryClient } from '@tanstack/react-query';

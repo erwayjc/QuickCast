@@ -194,7 +194,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (existingTemplates.length > 0) {
         // Update existing template
-        console.log('Updating existing Default Template with new host name:', hostName);
         const [template] = await db
           .update(schema.templates)
           .set({
@@ -208,7 +207,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ success: true, template });
       } else {
         // Create new template
-        console.log('Creating new Default Template with host name:', hostName);
         const [template] = await db
           .insert(schema.templates)
           .values({
