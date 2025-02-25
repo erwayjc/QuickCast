@@ -1,22 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
-import { FileMusic, Trash2, Play, Download, Settings, Save, Undo, User, Users } from "lucide-react";
+import { FileMusic, Trash2, Play, Download, Settings, Save, Undo } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import PodcastInfo from '@/components/PodcastInfo';
 import { 
   getDefaultPrompt, 
   getCustomPrompt, 
   saveCustomPrompt, 
-  getAllCustomPrompts,
-  getPodcastInfo,
-  savePodcastInfo
+  getAllCustomPrompts
 } from '@/services/promptService';
+import { getPodcastInfo } from '@/services/podcastInfoService';
 
 interface AudioFile {
   id: string;
@@ -33,11 +32,6 @@ interface PromptSection {
   isEdited: boolean;
 }
 
-interface PodcastInfo {
-  hostName: string;
-  targetAudience: string;
-}
-
 export default function Templates() {
   // Audio Templates state
   const [activeTab, setActiveTab] = useState<string>('intro');
@@ -50,11 +44,10 @@ export default function Templates() {
   const [isLoadingPrompts, setIsLoadingPrompts] = useState<boolean>(true);
 
   // Podcast info state
-  const [podcastInfo, setPodcastInfo] = useState<PodcastInfo>({
+  const [podcastInfo, setPodcastInfo] = useState({
     hostName: '',
     targetAudience: ''
   });
-  const [isEditingPodcastInfo, setIsEditingPodcastInfo] = useState<boolean>(false);
 
   const { toast } = useToast();
   const { playAudio } = useAudioPlayer();
@@ -87,28 +80,6 @@ export default function Templates() {
       toast({
         title: 'Error',
         description: 'Could not load podcast information',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  // Save podcast info
-  const handleSavePodcastInfo = async () => {
-    try {
-      await savePodcastInfo(podcastInfo);
-      setIsEditingPodcastInfo(false);
-
-      toast({
-        title: 'Success',
-        description: 'Podcast information saved successfully',
-      });
-
-      // Reload prompts to update variables in them
-      loadPrompts();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Could not save podcast information',
         variant: 'destructive',
       });
     }
@@ -454,92 +425,10 @@ export default function Templates() {
 
         {/* Podcast Info Tab Content */}
         <TabsContent value="podcast-info" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle>Podcast Information</CardTitle>
-                {!isEditingPodcastInfo ? (
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setIsEditingPodcastInfo(true)}
-                  >
-                    <Settings className="mr-2 h-4 w-4" />
-                    Edit Info
-                  </Button>
-                ) : (
-                  <Button 
-                    onClick={handleSavePodcastInfo}
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Changes
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <p className="text-muted-foreground">
-                This information will be used in AI-generated content to personalize your podcast.
-              </p>
-
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center">
-                    <User className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <label className="text-sm font-medium">Host Name</label>
-                  </div>
-                  {isEditingPodcastInfo ? (
-                    <Input 
-                      value={podcastInfo.hostName}
-                      onChange={(e) => setPodcastInfo(prev => ({ ...prev, hostName: e.target.value }))}
-                      placeholder="Enter the name of the podcast host"
-                    />
-                  ) : (
-                    <p className="p-2 bg-gray-50 rounded-md">
-                      {podcastInfo.hostName || "No host name specified"}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Used in prompts like: "In this episode, {'{host}'} discusses..."
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center">
-                    <Users className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <label className="text-sm font-medium">Target Audience</label>
-                  </div>
-                  {isEditingPodcastInfo ? (
-                    <Input 
-                      value={podcastInfo.targetAudience}
-                      onChange={(e) => setPodcastInfo(prev => ({ ...prev, targetAudience: e.target.value }))}
-                      placeholder="Describe your target audience (e.g., business professionals, tech enthusiasts)"
-                    />
-                  ) : (
-                    <p className="p-2 bg-gray-50 rounded-md">
-                      {podcastInfo.targetAudience || "No target audience specified"}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Used to tailor content for your specific audience
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-            {isEditingPodcastInfo && (
-              <CardFooter className="flex justify-between border-t pt-6">
-                <Button 
-                  variant="ghost" 
-                  onClick={() => setIsEditingPodcastInfo(false)}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleSavePodcastInfo}>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Changes
-                </Button>
-              </CardFooter>
-            )}
-          </Card>
+          <PodcastInfo 
+            initialData={podcastInfo}
+            onSaveSuccess={loadPrompts} // Reload prompts when info is saved
+          />
 
           <div className="mt-4">
             <h3 className="text-lg font-semibold mb-2">Available Variables</h3>
@@ -612,10 +501,10 @@ export default function Templates() {
                           This prompt is used when generating {section.name.toLowerCase()} content with AI.
                         </p>
 
-                        <Textarea
+                        <textarea
                           value={section.customPrompt}
                           onChange={(e) => handlePromptChange(section.id, e.target.value)}
-                          className="min-h-[200px] font-mono text-sm"
+                          className="min-h-[200px] font-mono text-sm w-full p-2 border rounded-md resize-y"
                         />
 
                         <p className="text-xs text-muted-foreground mt-2">

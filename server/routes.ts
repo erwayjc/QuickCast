@@ -138,6 +138,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.send(feed);
   });
 
+  app.get('/api/templates', async (_req, res) => {
+    try {
+      const templates = await db.select().from(schema.templates);
+      res.json(templates);
+    } catch (error) {
+      console.error('Error getting templates:', error);
+      res.status(500).json({ message: "Failed to retrieve templates" });
+    }
+  });
 
   // Update the test template creation endpoint to include hostName
   app.post('/api/templates', async (req, res) => {
@@ -161,6 +170,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error creating template:', error);
       res.status(500).json({ message: "Failed to create template" });
+    }
+  });
+
+  // Add podcast info endpoint
+  app.post("/api/podcast-info", async (req, res) => {
+    try {
+      console.log('Received podcast info data:', req.body);
+
+      const { hostName, targetAudience, description } = req.body;
+
+      if (hostName === undefined) {
+        return res.status(400).json({ 
+          message: "Missing required field: hostName"
+        });
+      }
+
+      // First check if default template exists
+      const existingTemplates = await db
+        .select()
+        .from(schema.templates)
+        .where(eq(schema.templates.name, "Default Template"));
+
+      if (existingTemplates.length > 0) {
+        // Update existing template
+        console.log('Updating existing Default Template with new host name:', hostName);
+        const [template] = await db
+          .update(schema.templates)
+          .set({
+            hostName: hostName || '',
+            targetAudience: targetAudience || '',
+            updatedAt: new Date()
+          })
+          .where(eq(schema.templates.name, "Default Template"))
+          .returning();
+
+        return res.json({ success: true, template });
+      } else {
+        // Create new template
+        console.log('Creating new Default Template with host name:', hostName);
+        const [template] = await db
+          .insert(schema.templates)
+          .values({
+            name: "Default Template",
+            type: "intro",
+            script: "Welcome to the podcast",
+            backgroundMusic: "/uploads/default.mp3",
+            musicVolume: 50,
+            duration: 30,
+            hostName: hostName || '',
+            targetAudience: targetAudience || '',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          })
+          .returning();
+
+        return res.json({ success: true, template });
+      }
+    } catch (error) {
+      console.error('Error saving podcast info:', error);
+      res.status(500).json({ 
+        message: "Failed to save podcast information",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Get podcast info endpoint
+  app.get("/api/podcast-info", async (_req, res) => {
+    try {
+      const [template] = await db
+        .select()
+        .from(schema.templates)
+        .where(eq(schema.templates.name, "Default Template"));
+
+      if (template) {
+        return res.json({ 
+          hostName: template.hostName,
+          targetAudience: template.targetAudience || ''
+        });
+      } else {
+        return res.json({ 
+          hostName: '',
+          targetAudience: ''
+        });
+      }
+    } catch (error) {
+      console.error('Error retrieving podcast info:', error);
+      res.status(500).json({ 
+        message: "Failed to retrieve podcast information",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
@@ -278,57 +378,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Failed to process audio:", error);
       return res.status(500).json({ 
         message: "Failed to process audio",
-        error: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
-
-  // Add podcast info route to the existing routes
-  app.post("/api/podcast-info", async (req, res) => {
-    try {
-      const { hostName, targetAudience, description } = req.body;
-
-      // First check if default template exists
-      const [existingTemplate] = await db
-        .select()
-        .from(schema.templates)
-        .where(eq(schema.templates.name, "Default Template"));
-
-      if (existingTemplate) {
-        // Update existing template
-        const [template] = await db
-          .update(schema.templates)
-          .set({
-            hostName: hostName || '',
-            updatedAt: new Date()
-          })
-          .where(eq(schema.templates.name, "Default Template"))
-          .returning();
-
-        return res.json({ success: true, template });
-      } else {
-        // Create new template
-        const [template] = await db
-          .insert(schema.templates)
-          .values({
-            name: "Default Template",
-            type: "intro",
-            script: "Welcome to the podcast",
-            backgroundMusic: "/uploads/default.mp3",
-            musicVolume: 50,
-            duration: 30,
-            hostName: hostName || '',
-            createdAt: new Date(),
-            updatedAt: new Date()
-          })
-          .returning();
-
-        return res.json({ success: true, template });
-      }
-    } catch (error) {
-      console.error('Error saving podcast info:', error);
-      res.status(500).json({ 
-        message: "Failed to save podcast information",
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }
