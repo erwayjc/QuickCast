@@ -1,196 +1,652 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Slider } from '@/components/ui/slider';
-import { useToast } from '@/hooks/use-toast';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { PlayCircle, PauseCircle, Plus, Save, Trash2 } from 'lucide-react';
-import type { Template } from '@shared/schema';
-import { apiRequest } from '@/lib/queryClient';
-import { useMusicGenerator, type MusicPattern } from '@/lib/musicGenerator';
+import React, { useState, useEffect } from 'react';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import { useAudioPlayer } from "@/hooks/useAudioPlayer";
+import { FileMusic, Trash2, Play, Download, Settings, Save, Undo, User, Users } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { 
+  getDefaultPrompt, 
+  getCustomPrompt, 
+  saveCustomPrompt, 
+  getAllCustomPrompts,
+  getPodcastInfo,
+  savePodcastInfo
+} from '@/services/promptService';
 
-const DEFAULT_PATTERNS: MusicPattern[] = [
-  { name: 'Upbeat Intro', pattern: [1, 0, 1, 0, 1, 1, 0, 1], bpm: 120 },
-  { name: 'Mellow Outro', pattern: [1, 0, 0, 1, 0, 0, 1, 0], bpm: 90 },
-  { name: 'Professional', pattern: [1, 1, 0, 0, 1, 0, 1, 0], bpm: 100 },
-];
+interface AudioFile {
+  id: string;
+  name: string;
+  file: File;
+  type: 'intro' | 'outro';
+}
 
-export default function TemplatesPage() {
-  const [selectedPattern, setSelectedPattern] = useState<MusicPattern>(DEFAULT_PATTERNS[0]);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(50);
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const musicGenerator = useMusicGenerator();
+interface PromptSection {
+  id: string;
+  name: string;
+  defaultPrompt: string;
+  customPrompt: string;
+  isEdited: boolean;
+}
 
-  // Fetch templates
-  const { data: templates, isLoading } = useQuery<Template[]>({
-    queryKey: ['/api/templates']
+interface PodcastInfo {
+  hostName: string;
+  targetAudience: string;
+}
+
+export default function Templates() {
+  // Audio Templates state
+  const [activeTab, setActiveTab] = useState<string>('intro');
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<Record<'intro' | 'outro', AudioFile[]>>({ intro: [], outro: [] });
+  const [fileName, setFileName] = useState('');
+
+  // AI Prompts state
+  const [promptSections, setPromptSections] = useState<PromptSection[]>([]);
+  const [isLoadingPrompts, setIsLoadingPrompts] = useState<boolean>(true);
+
+  // Podcast info state
+  const [podcastInfo, setPodcastInfo] = useState<PodcastInfo>({
+    hostName: '',
+    targetAudience: ''
   });
+  const [isEditingPodcastInfo, setIsEditingPodcastInfo] = useState<boolean>(false);
 
-  // Add template mutation
-  const addTemplate = useMutation({
-    mutationFn: async (template: Omit<Template, 'id' | 'createdAt' | 'updatedAt'>) => {
-      const response = await apiRequest('POST', '/api/templates', template);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/templates'] });
-      toast({
-        title: 'Success',
-        description: 'Template created successfully'
-      });
-    },
-    onError: () => {
+  const { toast } = useToast();
+  const { playAudio } = useAudioPlayer();
+
+  useEffect(() => {
+    loadAudioFiles();
+    loadPrompts();
+    loadPodcastInfo();
+  }, []);
+
+  // Define all the sections that need prompts
+  const sectionDefinitions = [
+    { id: 'overview', name: 'Episode Overview' },
+    { id: 'transcript', name: 'Transcript Cleanup' },
+    { id: 'show-notes', name: 'Show Notes' },
+    { id: 'tags', name: 'Tags & Keywords' },
+    { id: 'titles', name: 'Alternative Titles' },
+    { id: 'process', name: 'Process Steps' }
+  ];
+
+  // Load podcast info
+  const loadPodcastInfo = async () => {
+    try {
+      const info = await getPodcastInfo();
+      if (info) {
+        setPodcastInfo(info);
+      }
+    } catch (error) {
+      console.error('Error loading podcast info:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create template',
-        variant: 'destructive'
+        description: 'Could not load podcast information',
+        variant: 'destructive',
       });
-    }
-  });
-
-  const togglePlay = () => {
-    if (!musicGenerator) return;
-
-    if (isPlaying) {
-      musicGenerator.stop();
-      setIsPlaying(false);
-    } else {
-      musicGenerator.playPattern(selectedPattern);
-      setIsPlaying(true);
     }
   };
 
-  const handleVolumeChange = (value: number[]) => {
-    if (!musicGenerator) return;
-    setVolume(value[0]);
-    musicGenerator.setVolume(value[0]);
+  // Save podcast info
+  const handleSavePodcastInfo = async () => {
+    try {
+      await savePodcastInfo(podcastInfo);
+      setIsEditingPodcastInfo(false);
+
+      toast({
+        title: 'Success',
+        description: 'Podcast information saved successfully',
+      });
+
+      // Reload prompts to update variables in them
+      loadPrompts();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Could not save podcast information',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Load all prompts (default and custom)
+  const loadPrompts = async () => {
+    try {
+      setIsLoadingPrompts(true);
+
+      const sectionsWithPrompts = await Promise.all(
+        sectionDefinitions.map(async (section) => {
+          const defaultPrompt = getDefaultPrompt(section.id);
+          const customPrompt = await getCustomPrompt(section.id);
+
+          return {
+            id: section.id,
+            name: section.name,
+            defaultPrompt,
+            customPrompt: customPrompt || defaultPrompt,
+            isEdited: false
+          };
+        })
+      );
+
+      setPromptSections(sectionsWithPrompts);
+    } catch (error) {
+      console.error('Error loading prompts:', error);
+      toast({
+        title: 'Error loading prompts',
+        description: 'Could not load prompt templates',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingPrompts(false);
+    }
+  };
+
+  const handleSaveAudioFile = async () => {
+    if (!audioFile || !fileName) {
+      toast({
+        title: "Required fields missing",
+        description: "Please provide both an audio file and a name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const newAudioFile: AudioFile = {
+        id: Date.now().toString(),
+        name: fileName,
+        file: audioFile,
+        type: activeTab as 'intro' | 'outro'
+      };
+
+      setUploadedFiles(prev => ({
+        ...prev,
+        [activeTab]: [...prev[activeTab as 'intro' | 'outro'], newAudioFile]
+      }));
+
+      toast({
+        title: "Success",
+        description: "Audio file saved successfully",
+      });
+
+      // Reset form
+      setFileName('');
+      setAudioFile(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save audio file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteFile = async (id: string, type: 'intro' | 'outro') => {
+    try {
+      setUploadedFiles(prev => ({
+        ...prev,
+        [type]: prev[type].filter(file => file.id !== id)
+      }));
+
+      toast({
+        title: "Success",
+        description: "File deleted successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('audio/')) {
+        toast({
+          title: "Invalid file type",
+          description: "Please upload an audio file",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setAudioFile(file);
+      // Set a default name from the file name (without extension)
+      setFileName(file.name.split('.').slice(0, -1).join('.'));
+      toast({
+        title: "File selected",
+        description: file.name,
+      });
+    }
+  };
+
+  // Placeholder function to be implemented with actual API calls
+  const loadAudioFiles = async () => {
+    // Implementation pending
+  };
+
+  // Handle prompt text change
+  const handlePromptChange = (sectionId: string, newValue: string) => {
+    setPromptSections(prevSections => 
+      prevSections.map(section => 
+        section.id === sectionId 
+          ? { ...section, customPrompt: newValue, isEdited: true } 
+          : section
+      )
+    );
+  };
+
+  // Handle saving a prompt
+  const handleSavePrompt = async (sectionId: string) => {
+    try {
+      const section = promptSections.find(s => s.id === sectionId);
+      if (!section) return;
+
+      await saveCustomPrompt(sectionId, section.customPrompt);
+
+      // Update the section to show it's no longer edited (saved)
+      setPromptSections(prevSections => 
+        prevSections.map(s => 
+          s.id === sectionId ? { ...s, isEdited: false } : s
+        )
+      );
+
+      toast({
+        title: "Success",
+        description: `${section.name} prompt has been saved`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Could not save the prompt template",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle resetting a prompt to default
+  const handleResetPrompt = (sectionId: string) => {
+    const section = promptSections.find(s => s.id === sectionId);
+    if (!section) return;
+
+    setPromptSections(prevSections => 
+      prevSections.map(s => 
+        s.id === sectionId 
+          ? { ...s, customPrompt: s.defaultPrompt, isEdited: true } 
+          : s
+      )
+    );
+
+    toast({
+      title: "Reset successful",
+      description: `${section.name} prompt has been reset to default`,
+    });
+  };
+
+  // Handle saving all prompts
+  const handleSaveAllPrompts = async () => {
+    try {
+      // Get only the edited sections
+      const editedSections = promptSections.filter(section => section.isEdited);
+      if (editedSections.length === 0) {
+        toast({
+          title: "No changes to save",
+          description: "No prompts have been modified",
+        });
+        return;
+      }
+
+      // Save all edited prompts
+      await Promise.all(
+        editedSections.map(section => 
+          saveCustomPrompt(section.id, section.customPrompt)
+        )
+      );
+
+      // Mark all as saved (not edited)
+      setPromptSections(prevSections => 
+        prevSections.map(section => ({ ...section, isEdited: false }))
+      );
+
+      toast({
+        title: "Success",
+        description: `${editedSections.length} prompt templates have been saved`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Some prompts could not be saved",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Podcast Templates</h1>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          New Template
-        </Button>
-      </div>
+    <div className="container mx-auto p-6 space-y-8">
+      <h1 className="text-3xl font-bold">Podcast Templates</h1>
 
-      <Tabs defaultValue="intro">
-        <TabsList className="mb-8">
-          <TabsTrigger value="intro">Intro Templates</TabsTrigger>
-          <TabsTrigger value="outro">Outro Templates</TabsTrigger>
+      <Tabs defaultValue="audio" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="audio">Audio Templates</TabsTrigger>
+          <TabsTrigger value="podcast-info">Podcast Info</TabsTrigger>
+          <TabsTrigger value="ai-prompts">AI Prompts</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="intro">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Music Generator</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Pattern</label>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      {DEFAULT_PATTERNS.map((pattern) => (
-                        <Button
-                          key={pattern.name}
-                          variant={selectedPattern.name === pattern.name ? "secondary" : "outline"}
-                          onClick={() => setSelectedPattern(pattern)}
-                          className="justify-start"
-                        >
-                          {pattern.name}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
+        {/* Audio Templates Tab Content */}
+        <TabsContent value="audio" className="space-y-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList>
+              <TabsTrigger value="intro">Intro Audio</TabsTrigger>
+              <TabsTrigger value="outro">Outro Audio</TabsTrigger>
+            </TabsList>
 
-                  <div>
-                    <label className="text-sm font-medium">Volume</label>
-                    <Slider
-                      value={[volume]}
-                      onValueChange={handleVolumeChange}
-                      max={100}
-                      step={1}
-                      className="mt-2"
-                    />
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={togglePlay}
-                  >
-                    {isPlaying ? (
-                      <PauseCircle className="h-4 w-4" />
-                    ) : (
-                      <PlayCircle className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Script Editor</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+            <div className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Upload Audio</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <Input
-                    placeholder="Template name"
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleFileChange}
+                    className="mb-4"
                   />
-                  <Textarea
-                    placeholder="Enter your intro script here..."
-                    className="min-h-[200px]"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline">
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Template
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Saved Templates */}
-          <div className="mt-8">
-            <h2 className="text-xl font-semibold mb-4">Saved Intro Templates</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {templates?.filter(t => t.type === 'intro').map((template) => (
-                <Card key={template.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="font-medium">{template.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Duration: {Math.floor(template.duration / 60)}:{(template.duration % 60).toString().padStart(2, '0')}
-                        </p>
+                  {audioFile && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <FileMusic className="h-4 w-4" />
+                        <span className="flex-1 truncate">{audioFile.name}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setAudioFile(null);
+                            setFileName('');
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button variant="ghost" size="icon">
-                        <Trash2 className="w-4 h-4" />
+                      <Input
+                        placeholder="Enter a name for this audio"
+                        value={fileName}
+                        onChange={(e) => setFileName(e.target.value)}
+                      />
+                      <Button 
+                        className="w-full"
+                        onClick={handleSaveAudioFile}
+                      >
+                        Save Audio Template
                       </Button>
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-3">
-                      {template.script}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
+                  )}
+                </CardContent>
+              </Card>
             </div>
+          </Tabs>
+
+          <div className="mt-8">
+            <h2 className="text-2xl font-semibold mb-4">
+              Saved {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Audio Files
+            </h2>
+
+            {uploadedFiles[activeTab as 'intro' | 'outro'].length === 0 ? (
+              <p className="text-muted-foreground">No audio files saved yet.</p>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {uploadedFiles[activeTab as 'intro' | 'outro'].map(file => (
+                  <Card key={file.id}>
+                    <CardContent className="pt-6">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-semibold">{file.name}</h3>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteFile(file.id, file.type)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2 mt-4">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => {
+                            const url = URL.createObjectURL(file.file);
+                            playAudio(url);
+                          }}
+                        >
+                          <Play className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => {
+                            const url = URL.createObjectURL(file.file);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = file.file.name;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
         </TabsContent>
 
-        <TabsContent value="outro">
-          {/* Similar structure as intro but for outros */}
+        {/* Podcast Info Tab Content */}
+        <TabsContent value="podcast-info" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Podcast Information</CardTitle>
+                {!isEditingPodcastInfo ? (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsEditingPodcastInfo(true)}
+                  >
+                    <Settings className="mr-2 h-4 w-4" />
+                    Edit Info
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={handleSavePodcastInfo}
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Changes
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <p className="text-muted-foreground">
+                This information will be used in AI-generated content to personalize your podcast.
+              </p>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center">
+                    <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <label className="text-sm font-medium">Host Name</label>
+                  </div>
+                  {isEditingPodcastInfo ? (
+                    <Input 
+                      value={podcastInfo.hostName}
+                      onChange={(e) => setPodcastInfo(prev => ({ ...prev, hostName: e.target.value }))}
+                      placeholder="Enter the name of the podcast host"
+                    />
+                  ) : (
+                    <p className="p-2 bg-gray-50 rounded-md">
+                      {podcastInfo.hostName || "No host name specified"}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Used in prompts like: "In this episode, {'{host}'} discusses..."
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center">
+                    <Users className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <label className="text-sm font-medium">Target Audience</label>
+                  </div>
+                  {isEditingPodcastInfo ? (
+                    <Input 
+                      value={podcastInfo.targetAudience}
+                      onChange={(e) => setPodcastInfo(prev => ({ ...prev, targetAudience: e.target.value }))}
+                      placeholder="Describe your target audience (e.g., business professionals, tech enthusiasts)"
+                    />
+                  ) : (
+                    <p className="p-2 bg-gray-50 rounded-md">
+                      {podcastInfo.targetAudience || "No target audience specified"}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Used to tailor content for your specific audience
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+            {isEditingPodcastInfo && (
+              <CardFooter className="flex justify-between border-t pt-6">
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setIsEditingPodcastInfo(false)}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleSavePodcastInfo}>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Changes
+                </Button>
+              </CardFooter>
+            )}
+          </Card>
+
+          <div className="mt-4">
+            <h3 className="text-lg font-semibold mb-2">Available Variables</h3>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm">Variable</h4>
+                      <p className="p-2 bg-gray-50 rounded-md font-mono text-sm">{"{host}"}</p>
+                      <p className="p-2 bg-gray-50 rounded-md font-mono text-sm">{"{audience}"}</p>
+                      <p className="p-2 bg-gray-50 rounded-md font-mono text-sm">{"{title}"}</p>
+                      <p className="p-2 bg-gray-50 rounded-md font-mono text-sm">{"{transcript}"}</p>
+                      <p className="p-2 bg-gray-50 rounded-md font-mono text-sm">{"{duration}"}</p>
+                      <p className="p-2 bg-gray-50 rounded-md font-mono text-sm">{"{date}"}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm">Description</h4>
+                      <p className="p-2 rounded-md">The podcast host's name</p>
+                      <p className="p-2 rounded-md">The target audience</p>
+                      <p className="p-2 rounded-md">Episode title</p>
+                      <p className="p-2 rounded-md">Episode transcript</p>
+                      <p className="p-2 rounded-md">Episode duration</p>
+                      <p className="p-2 rounded-md">Recording date</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* AI Prompts Tab Content */}
+        <TabsContent value="ai-prompts" className="space-y-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-semibold">AI Prompt Templates</h2>
+            <Button 
+              onClick={handleSaveAllPrompts}
+              disabled={!promptSections.some(section => section.isEdited)}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              Save All Changes
+            </Button>
+          </div>
+
+          <p className="text-muted-foreground mb-6">
+            Customize the prompts used by ChatGPT to generate content for each section of your podcast episodes.
+          </p>
+
+          {isLoadingPrompts ? (
+            <p className="text-center py-8 text-muted-foreground">Loading prompt templates...</p>
+          ) : (
+            <Accordion type="multiple" className="w-full">
+              {promptSections.map((section) => (
+                <AccordionItem key={section.id} value={section.id}>
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center">
+                      <span>{section.name}</span>
+                      {section.isEdited && (
+                        <Badge variant="outline" className="ml-2 bg-red-50 text-red-500 border-red-200">
+                          Edited
+                        </Badge>
+                      )}
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <Card className="border-0 shadow-none">
+                      <CardContent className="pt-4 space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          This prompt is used when generating {section.name.toLowerCase()} content with AI.
+                        </p>
+
+                        <Textarea
+                          value={section.customPrompt}
+                          onChange={(e) => handlePromptChange(section.id, e.target.value)}
+                          className="min-h-[200px] font-mono text-sm"
+                        />
+
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Available variables: <code className="text-xs">{"{host}"}</code>, <code className="text-xs">{"{audience}"}</code>, <code className="text-xs">{"{title}"}</code>, <code className="text-xs">{"{transcript}"}</code>, <code className="text-xs">{"{duration}"}</code>, <code className="text-xs">{"{date}"}</code>
+                        </p>
+
+                        <div className="flex justify-end space-x-2 mt-4">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleResetPrompt(section.id)}
+                          >
+                            <Undo className="mr-2 h-3 w-3" />
+                            Reset to Default
+                          </Button>
+                          <Button 
+                            size="sm"
+                            onClick={() => handleSavePrompt(section.id)}
+                            disabled={!section.isEdited}
+                          >
+                            <Save className="mr-2 h-3 w-3" />
+                            Save
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          )}
         </TabsContent>
       </Tabs>
     </div>
