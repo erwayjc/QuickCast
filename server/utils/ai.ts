@@ -1,18 +1,19 @@
-// utils/ai.ts
 import OpenAI from "openai";
 import { type Episode } from "@shared/schema";
+import { db } from "../db";
+import * as schema from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export async function generateShowNotes(transcript: string): Promise<string> {
+export async function generateShowNotes(transcript: string, hostName: string = 'the host'): Promise<string> {
   try {
-    // Fixed model name from "gpt-4o" to "gpt-4"
     const response = await openai.chat.completions.create({
-      model: "gpt-4", // or "gpt-3.5-turbo" if you prefer
+      model: "gpt-4",
       messages: [
         {
           role: "system",
-          content: "You are a professional podcast show notes writer. Create detailed, well-structured show notes from the provided transcript. Include key points, topics discussed, timestamps for important moments, and any notable quotes. Format with Markdown for better readability."
+          content: `You are a professional podcast show notes writer. Create detailed, well-structured show notes from the provided transcript of ${hostName}'s podcast. Include key points, topics discussed, timestamps for important moments, and any notable quotes from ${hostName}. Format with Markdown for better readability.`
         },
         {
           role: "user",
@@ -29,14 +30,14 @@ export async function generateShowNotes(transcript: string): Promise<string> {
   }
 }
 
-export async function generateTitleSuggestions(transcript: string): Promise<string[]> {
+export async function generateTitleSuggestions(transcript: string, hostName: string = 'the host'): Promise<string[]> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4", // Fixed model name
+      model: "gpt-4",
       messages: [
         {
           role: "system",
-          content: "You are a podcast title expert. Generate 3 engaging, SEO-friendly title suggestions based on the transcript. Return them as a JSON array of strings."
+          content: `You are a podcast title expert. Generate 3 engaging, SEO-friendly title suggestions for ${hostName}'s podcast episode based on the transcript. Return them as a JSON array of strings.`
         },
         {
           role: "user",
@@ -59,14 +60,14 @@ export async function generateTitleSuggestions(transcript: string): Promise<stri
   }
 }
 
-export async function generateTags(transcript: string): Promise<string[]> {
+export async function generateTags(transcript: string, hostName: string = 'the host'): Promise<string[]> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4", // Fixed model name
+      model: "gpt-4",
       messages: [
         {
           role: "system",
-          content: "Generate relevant tags or keywords from the transcript. Return them as a JSON array of strings. Maximum 10 tags."
+          content: `Generate relevant tags or keywords from ${hostName}'s podcast transcript. Return them as a JSON array of strings. Maximum 10 tags that best represent the episode's content and ${hostName}'s expertise.`
         },
         {
           role: "user",
@@ -89,14 +90,14 @@ export async function generateTags(transcript: string): Promise<string[]> {
   }
 }
 
-export async function generateSummary(transcript: string): Promise<string> {
+export async function generateSummary(transcript: string, hostName: string = 'the host'): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4", // Fixed model name
+      model: "gpt-4",
       messages: [
         {
           role: "system",
-          content: "Create a concise summary of the podcast episode from the transcript. Focus on the main topics and key takeaways. Keep it under 200 words."
+          content: `Create a concise summary of ${hostName}'s podcast episode from the transcript. Focus on the main topics and key takeaways that ${hostName} discussed. Keep it under 200 words.`
         },
         {
           role: "user",
@@ -114,21 +115,19 @@ export async function generateSummary(transcript: string): Promise<string> {
 
 export async function transcribeAudio(audioUrl: string): Promise<string> {
   try {
-    // Get the full URL if it's a relative path
-    const fullUrl = audioUrl.startsWith('http') 
-      ? audioUrl 
-      : `${process.env.REPL_URL}${audioUrl}`;
-
+    const fullUrl = audioUrl;
     console.log('[Transcription] Starting transcription for URL:', fullUrl);
 
     // Download the audio file first
     const response = await fetch(fullUrl);
     if (!response.ok) {
-      throw new Error(`Failed to download audio: ${response.status}`);
+      throw new Error(`Failed to download audio: ${response.status} ${response.statusText}`);
     }
 
     const audioBuffer = await response.arrayBuffer();
     const audioFile = new File([audioBuffer], 'audio.mp3', { type: 'audio/mp3' });
+
+    console.log('[Transcription] Successfully downloaded audio, starting OpenAI transcription');
 
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
@@ -141,6 +140,9 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
     return transcription;
   } catch (error) {
     console.error("[Transcription] Error:", error);
+    if (error instanceof Error) {
+      throw new Error(`Transcription failed: ${error.message}`);
+    }
     throw error;
   }
 }
@@ -152,12 +154,25 @@ export async function processEpisode(episode: Episode): Promise<Partial<Episode>
     const transcript = await transcribeAudio(episode.audioUrl);
     console.log('[ProcessEpisode] Transcription completed, length:', transcript.length);
 
+    // Get the template info and host name if available
+    let hostName = 'the host';
+    if (episode.templateId) {
+      const [template] = await db
+        .select()
+        .from(schema.templates)
+        .where(eq(schema.templates.id, episode.templateId));
+
+      if (template) {
+        hostName = template.hostName || hostName;
+      }
+    }
+
     console.log('[ProcessEpisode] Starting parallel AI processing tasks');
     const [titleSuggestions, showNotes, tags, summary] = await Promise.all([
-      generateTitleSuggestions(transcript),
-      generateShowNotes(transcript),
-      generateTags(transcript),
-      generateSummary(transcript)
+      generateTitleSuggestions(transcript, hostName),
+      generateShowNotes(transcript, hostName),
+      generateTags(transcript, hostName),
+      generateSummary(transcript, hostName)
     ]);
     console.log('[ProcessEpisode] AI processing tasks completed');
 

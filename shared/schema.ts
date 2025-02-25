@@ -26,8 +26,9 @@ export const episodes = pgTable("episodes", {
   status: episodeStatus("status").default('draft').notNull(),
   publishDate: timestamp("publish_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  templateId: integer("template_id"), // Added templateId field
 
-  // Music-related fields (keeping these)
+  // Music-related fields
   introMusicUrl: text("intro_music_url"),
   outroMusicUrl: text("outro_music_url"),
 
@@ -40,7 +41,7 @@ export const episodes = pgTable("episodes", {
   titleSuggestions: text("title_suggestions").array().default(Array())
 });
 
-// Templates table (keeping this)
+// Templates table
 export const templates = pgTable("templates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -49,6 +50,7 @@ export const templates = pgTable("templates", {
   backgroundMusic: text("background_music").notNull(),
   musicVolume: integer("music_volume").default(50).notNull(),
   duration: integer("duration").notNull(),
+  hostName: text("host_name").default('').notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull()
 });
@@ -77,7 +79,8 @@ export const insertEpisodeSchema = createInsertSchema(episodes)
     showNotes: true,
     aiGeneratedTags: true,
     aiGeneratedSummary: true,
-    titleSuggestions: true
+    titleSuggestions: true,
+    templateId: true // Added templateId to the schema
   })
   .extend({
     // Add additional validation for AI-related fields
@@ -96,7 +99,8 @@ export const insertTemplateSchema = createInsertSchema(templates)
     script: true,
     backgroundMusic: true,
     musicVolume: true,
-    duration: true
+    duration: true,
+    hostName: true
   });
 
 // Type exports

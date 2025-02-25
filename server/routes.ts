@@ -3,13 +3,15 @@ import { concatenateAudio } from "./utils/audioProcessing";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertEpisodeSchema } from "@shared/schema";
+import { insertEpisodeSchema, insertTemplateSchema } from "@shared/schema";
 import { generatePodcastFeed } from "./utils/feed";
 import OpenAI from "openai";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import express from "express";
+import { db } from "./db";
+import * as schema from "@shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -135,7 +137,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.send(feed);
   });
 
-  // Enhanced transcription endpoint
+
+  // Update the test template creation endpoint to include hostName
+  app.post('/api/templates', async (req, res) => {
+    try {
+      const result = insertTemplateSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: "Invalid template data" });
+      }
+
+      const [template] = await db
+        .insert(schema.templates)
+        .values({
+          ...result.data,
+          hostName: result.data.hostName || '',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      res.json(template);
+    } catch (error) {
+      console.error('Error creating template:', error);
+      res.status(500).json({ message: "Failed to create template" });
+    }
+  });
+
+  // Update the AI processing route to include hostName in prompts
   app.post("/api/episodes/:id/transcribe", async (req, res) => {
     try {
       const episode = await storage.getEpisode(Number(req.params.id));
@@ -143,17 +171,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('[Route] Episode not found:', req.params.id);
         return res.status(404).json({ message: "Episode not found" });
       }
-
-      if (!episode.audioUrl) {
-        console.log('[Route] No audio URL found for episode:', episode.id);
-        return res.status(400).json({ message: "No audio file found for episode" });
-      }
-
-      console.log('[Route] Starting AI processing for episode:', {
-        id: episode.id,
-        audioUrl: episode.audioUrl,
-        currentStatus: episode.transcriptionStatus
-      });
 
       // Update episode status to show processing
       await storage.updateEpisode(episode.id, {
@@ -216,56 +233,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Transcript update endpoint
-  app.patch("/api/episodes/:id/transcript", async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const { transcript } = req.body;
-
-      if (!transcript) {
-        res.status(400).json({ message: "Transcript is required" });
-        return;
-      }
-
-      const episode = await storage.updateEpisode(id, { transcript });
-      if (!episode) {
-        res.status(404).json({ message: "Episode not found" });
-        return;
-      }
-
-      res.json(episode);
-    } catch (error) {
-      console.error("Failed to update transcript:", error);
-      res.status(500).json({ message: "Failed to update transcript" });
-    }
-  });
-
-  // Apply suggested title endpoint
-  app.patch("/api/episodes/:id/apply-title", async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const { titleIndex } = req.body;
-
-      const episode = await storage.getEpisode(id);
-      if (!episode) {
-        return res.status(404).json({ message: "Episode not found" });
-      }
-
-      if (!episode.titleSuggestions || !episode.titleSuggestions[titleIndex]) {
-        return res.status(400).json({ message: "Invalid title suggestion index" });
-      }
-
-      const updatedEpisode = await storage.updateEpisode(id, {
-        title: episode.titleSuggestions[titleIndex]
-      });
-
-      res.json(updatedEpisode);
-    } catch (error) {
-      console.error("Failed to apply suggested title:", error);
-      res.status(500).json({ message: "Failed to apply suggested title" });
-    }
-  });
-
   // Add the process episode route within registerRoutes
   app.post("/api/episodes/:id/process", async (req, res) => {
     try {
@@ -310,6 +277,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Failed to process audio:", error);
       return res.status(500).json({ 
         message: "Failed to process audio",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Add podcast info route to the existing routes
+  app.post("/api/podcast-info", async (req, res) => {
+    try {
+      const { hostName, targetAudience, description } = req.body;
+
+      // Store in the first template as default template
+      const [template] = await db
+        .insert(schema.templates)
+        .values({
+          name: "Default Template",
+          type: "intro",
+          script: "Welcome to the podcast",
+          backgroundMusic: "/uploads/default.mp3",
+          musicVolume: 50,
+          duration: 30,
+          hostName: hostName || '',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .onConflictDoUpdate({
+          target: schema.templates.name,
+          set: {
+            hostName: hostName || '',
+            updatedAt: new Date()
+          }
+        })
+        .returning();
+
+      res.json({ success: true, template });
+    } catch (error) {
+      console.error('Error saving podcast info:', error);
+      res.status(500).json({ 
+        message: "Failed to save podcast information",
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }

@@ -6,6 +6,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import Home from "@/pages/Home";
 import Auth from "@/pages/auth";
 import Templates from "@/pages/templates";
+import EpisodeDraftPage from "@/pages/Episodedraftpage"; 
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -17,6 +18,7 @@ interface AudioContextType {
 
 // Create an audio context to share player state
 import { createContext, useContext, useState } from 'react';
+
 export const AudioContext = createContext<AudioContextType | null>(null);
 
 export function AudioProvider({ children }: { children: React.ReactNode }) {
@@ -28,12 +30,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       const response = await fetch(`/api/episodes/${id}/transcribe`, {
         method: 'POST',
       });
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Transcription failed');
       }
-
       // Invalidate the episodes query to refresh the data
       queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
     } catch (error) {
@@ -81,6 +81,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/auth" component={Auth} />
+
       <Route path="/">
         <ProtectedRoute component={() => (
           <MainLayout>
@@ -88,6 +89,7 @@ function Router() {
           </MainLayout>
         )} />
       </Route>
+
       <Route path="/templates">
         <ProtectedRoute component={() => (
           <MainLayout>
@@ -95,6 +97,27 @@ function Router() {
           </MainLayout>
         )} />
       </Route>
+
+      {/* New route for episode drafts */}
+      <Route path="/draft/:id">
+        {(params) => (
+          <ProtectedRoute component={() => (
+            <MainLayout>
+              <EpisodeDraftPage id={params.id} />
+            </MainLayout>
+          )} />
+        )}
+      </Route>
+
+      {/* Route for creating new drafts */}
+      <Route path="/draft/new">
+        <ProtectedRoute component={() => (
+          <MainLayout>
+            <EpisodeDraftPage />
+          </MainLayout>
+        )} />
+      </Route>
+
       <Route component={NotFound} />
     </Switch>
   );
