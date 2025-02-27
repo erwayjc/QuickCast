@@ -5,6 +5,7 @@ import { PodcastPlayer } from '@/components/PodcastPlayer';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useAudio } from '@/App';
 import type { Episode } from '@shared/schema';
 
 export default function Home() {
@@ -14,6 +15,7 @@ export default function Home() {
   const [waveformData, setWaveformData] = useState<Uint8Array>(new Uint8Array(128).fill(128));
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { transcribe } = useAudio();
 
   const handleRecordingComplete = async (blob: Blob) => {
     try {
@@ -109,29 +111,6 @@ export default function Home() {
     setIsPlaying(false);
   };
 
-  const handlePublish = async () => {
-    if (!currentEpisode) return;
-
-    try {
-      const response = await apiRequest('PATCH', `/api/episodes/${currentEpisode.id}/publish`);
-      const publishedEpisode = await response.json();
-
-      setCurrentEpisode(publishedEpisode);
-      queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
-
-      toast({
-        title: "Success",
-        description: "Episode published successfully!",
-      });
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: "Failed to publish episode",
-        variant: "destructive"
-      });
-    }
-  };
-
   const handleDelete = async (id: number) => {
     try {
       await apiRequest('DELETE', `/api/episodes/${id}`);
@@ -156,6 +135,15 @@ export default function Home() {
     }
   };
 
+  const handleTranscribe = async (id: number) => {
+    try {
+      await transcribe(id);
+    } catch (error) {
+      console.error('Transcription error in Home:', error);
+      // Error is already handled by the transcribe function
+    }
+  };
+
   // Get view from MainLayout context
   const view = window.localStorage.getItem('view') as 'grid' | 'list' || 'list';
 
@@ -171,7 +159,7 @@ export default function Home() {
             episode={currentEpisode}
             onPlay={() => handlePlay(currentEpisode)}
             onPause={handlePause}
-            onPublish={currentEpisode.status === 'draft' ? handlePublish : undefined}
+            onPublish={currentEpisode.status === 'draft' ? undefined : undefined}
             isPlaying={isPlaying}
             waveformData={waveformData}
           />
@@ -184,6 +172,7 @@ export default function Home() {
           onPlay={handlePlay} 
           onDelete={handleDelete}
           view={view}
+          onTranscribe={handleTranscribe}
         />
       </div>
     </div>

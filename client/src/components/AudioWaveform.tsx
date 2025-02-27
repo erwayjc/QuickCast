@@ -21,7 +21,17 @@ export function AudioWaveform({
 }: AudioWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const drawWaveform = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Make sure canvas size matches its display size
+    const width = canvas.width;
+    const height = canvas.height;
+
     // Clear canvas with dark background
     ctx.fillStyle = '#18181B'; // zinc-900
     ctx.fillRect(0, 0, width, height);
@@ -105,40 +115,30 @@ export function AudioWaveform({
       ctx.lineTo(endX + 8, height/2);
       ctx.lineTo(endX, height/2 + handleHeight/2);
       ctx.fill();
-
-      // Draw playback position line
-      if (currentTime >= 0 && currentTime <= duration) {
-        const positionX = (currentTime / duration) * width;
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(positionX, 0);
-        ctx.lineTo(positionX, height);
-        ctx.stroke();
-
-        // Draw position handle
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(positionX, height - 10, 4, 0, 2 * Math.PI);
-        ctx.fill();
-      }
     }
-  };
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    // Draw playback position line
+    if (currentTime >= 0 && currentTime <= duration && duration > 0) {
+      const positionX = (currentTime / duration) * width;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(positionX, 0);
+      ctx.lineTo(positionX, height);
+      ctx.stroke();
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    drawWaveform(ctx, canvas.width, canvas.height);
+      // Draw position handle
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(positionX, height - 10, 4, 0, 2 * Math.PI);
+      ctx.fill();
+    }
   }, [analyserData, trimStart, trimEnd, duration, isEditable, currentTime]);
 
   return (
     <canvas 
       ref={canvasRef} 
-      className="w-full h-40 rounded-xl"
+      className="w-full h-full rounded-xl"
       width={800}
       height={200}
       style={{ cursor: isEditable ? 'ew-resize' : 'default' }}

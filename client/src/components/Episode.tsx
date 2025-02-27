@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 
 interface Template {
   id: number;
@@ -52,6 +53,28 @@ const Episode: React.FC<EpisodeProps> = ({
 }) => {
   const [selectedIntro, setSelectedIntro] = useState<string>();
   const [selectedOutro, setSelectedOutro] = useState<string>();
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const { toast } = useToast();
+
+  const handleTranscribe = async () => {
+    if (!onTranscribe) return;
+
+    try {
+      setIsTranscribing(true);
+      await onTranscribe();
+    } catch (error) {
+      console.error('Transcription error:', error);
+      toast({
+        title: "Transcription Failed",
+        description: error instanceof Error 
+          ? error.message 
+          : "Failed to transcribe the episode. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
 
   return (
     <div className="rounded-lg border border-gray-200 p-4 mb-4">
@@ -103,13 +126,13 @@ const Episode: React.FC<EpisodeProps> = ({
 
           {transcriptionStatus !== 'completed' && (
             <Button
-              onClick={onTranscribe}
+              onClick={handleTranscribe}
               variant="secondary"
               size="sm"
-              disabled={transcriptionStatus === 'processing'}
+              disabled={isTranscribing || transcriptionStatus === 'processing'}
             >
               <span className="mr-2">📝</span>
-              {transcriptionStatus === 'processing' ? 'Transcribing...' : 'Transcribe'}
+              {isTranscribing || transcriptionStatus === 'processing' ? 'Transcribing...' : 'Transcribe'}
             </Button>
           )}
 

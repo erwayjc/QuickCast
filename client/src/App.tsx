@@ -27,13 +27,40 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const transcribe = async (id: number) => {
     try {
       setIsTranscribing(true);
+
+      // First, ensure we have the episode information with the correct audio URL
+      const episodeResponse = await fetch(`/api/episodes/${id}`);
+      if (!episodeResponse.ok) {
+        const error = await episodeResponse.json();
+        throw new Error(error.message || 'Failed to get episode information');
+      }
+
+      const episode = await episodeResponse.json();
+
+      // Make sure we have a valid audio URL
+      if (!episode.audioUrl) {
+        throw new Error('No audio URL found for this episode');
+      }
+
+      // Get absolute URL if it's relative
+      const audioUrl = episode.audioUrl.startsWith('http') 
+        ? episode.audioUrl 
+        : new URL(episode.audioUrl, window.location.origin).toString();
+
+      // Send the transcription request with the properly formatted URL
       const response = await fetch(`/api/episodes/${id}/transcribe`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ audioUrl })
       });
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Transcription failed');
       }
+
       // Invalidate the episodes query to refresh the data
       queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
     } catch (error) {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Episode as EpisodeType } from '@shared/schema';
 import { format } from 'date-fns';
@@ -10,6 +10,7 @@ interface EpisodeListProps {
   onPlay: (episode: EpisodeType) => void;
   onDelete: (id: number) => void;
   view: 'grid' | 'list';
+  onTranscribe?: (id: number) => Promise<void>; // Add this prop
 }
 
 interface Template {
@@ -18,7 +19,7 @@ interface Template {
   type: 'intro' | 'outro';
 }
 
-export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
+export function EpisodeList({ onPlay, onDelete, view, onTranscribe }: EpisodeListProps) {
   const { data: episodes, isLoading } = useQuery<EpisodeType[]>({
     queryKey: ['/api/episodes']
   });
@@ -30,33 +31,44 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [processingEpisodeId, setProcessingEpisodeId] = useState<number | null>(null);
 
-  const transcribeEpisode = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await apiRequest('POST', `/api/episodes/${id}/transcribe`);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to transcribe episode');
+  const transcribeEpisode = async (id: number) => {
+    try {
+      if (onTranscribe) {
+        await onTranscribe(id);
+      } else {
+        // Fallback if no onTranscribe prop is provided
+        const response = await apiRequest('POST', `/api/episodes/${id}/transcribe`);
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to transcribe episode');
+        }
+        queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
       }
-      return response.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
+
+      // Show success toast
       toast({
         title: "AI Processing Started",
         description: "Your episode is being processed. We'll generate a transcript, show notes, tags, and more.",
         duration: 5000,
       });
-    },
-    onError: (error: Error) => {
+    } catch (error) {
+      console.error('Transcription error:', error);
+
       toast({
         title: "Processing Failed",
-        description: error.message || "Unable to process episode. Please try again later.",
+        description: error instanceof Error 
+          ? error.message 
+          : "Unable to process episode. Please try again later.",
         variant: "destructive",
         duration: 5000,
       });
+
+      // Re-throw the error to be handled by the component
+      throw error;
     }
-  });
+  };
 
   const applyTitleSuggestion = useMutation({
     mutationFn: async ({ id, titleIndex }: { id: number; titleIndex: number }) => {
@@ -89,18 +101,25 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
 
   const processEpisode = useMutation({
     mutationFn: async ({ id, introId, outroId }: { id: number; introId?: number; outroId?: number }) => {
-      const response = await apiRequest('POST', `/api/episodes/${id}/process`, {
-        body: {
-          introId,
-          outroId
-        }
-      });
+      setProcessingEpisodeId(id);
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to process episode');
+      try {
+        const response = await apiRequest('POST', `/api/episodes/${id}/process`, {
+          body: {
+            introId,
+            outroId
+          }
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to process episode');
+        }
+
+        return response.json();
+      } finally {
+        setProcessingEpisodeId(null);
       }
-      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/episodes'] });
@@ -160,9 +179,9 @@ export function EpisodeList({ onPlay, onDelete, view }: EpisodeListProps) {
             aiGeneratedSummary={episode.aiGeneratedSummary}
             titleSuggestions={episode.titleSuggestions}
             templates={templates}
-            isProcessing={processEpisode.isPending}
+            isProcessing={processingEpisodeId === episode.id}
             onPlay={() => onPlay(episode)}
-            onTranscribe={() => transcribeEpisode.mutate(episode.id)}
+            onTranscribe={() => transcribeEpisode(episode.id)}
             onDelete={() => onDelete(episode.id)}
             onProcess={(introId, outroId) => 
               processEpisode.mutate({ id: episode.id, introId, outroId })}
