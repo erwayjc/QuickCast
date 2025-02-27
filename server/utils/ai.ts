@@ -3,6 +3,8 @@ import { type Episode } from "@shared/schema";
 import { db } from "../db";
 import * as schema from "@shared/schema";
 import { eq } from "drizzle-orm";
+import fs from "fs";
+import path from "path";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -115,20 +117,45 @@ export async function generateSummary(transcript: string, hostName: string = 'th
 
 export async function transcribeAudio(audioUrl: string): Promise<string> {
   try {
-    const fullUrl = audioUrl;
-    console.log('[Transcription] Starting transcription for URL:', fullUrl);
+    console.log('[Transcription] Starting transcription for URL:', audioUrl);
 
-    // Download the audio file first
-    const response = await fetch(fullUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to download audio: ${response.status} ${response.statusText}`);
+    let audioFilePath: string;
+    let fileBuffer: Buffer;
+
+    // Check if the URL is a relative path or absolute URL
+    if (audioUrl.startsWith('/uploads/')) {
+      // It's a relative path to a local file
+      audioFilePath = path.join(process.cwd(), audioUrl.slice(1));
+      console.log('[Transcription] Using local file at:', audioFilePath);
+
+      // Check if file exists
+      if (!fs.existsSync(audioFilePath)) {
+        throw new Error(`Audio file not found at path: ${audioFilePath}`);
+      }
+
+      // Read the file directly from disk
+      fileBuffer = fs.readFileSync(audioFilePath);
+    } else {
+      // It's a remote URL, fetch it
+      console.log('[Transcription] Fetching remote URL:', audioUrl);
+      const response = await fetch(audioUrl);
+
+      if (!response.ok) {
+        throw new Error(`Failed to download audio: ${response.status} ${response.statusText}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      fileBuffer = Buffer.from(arrayBuffer);
     }
 
-    const audioBuffer = await response.arrayBuffer();
-    const audioFile = new File([audioBuffer], 'audio.mp3', { type: 'audio/mp3' });
+    // Get file extension from path
+    const fileExtension = path.extname(audioUrl).slice(1).toLowerCase() || 'mp3';
+    const mimeType = `audio/${fileExtension === 'webm' ? 'webm' : 'mpeg'}`;
 
-    console.log('[Transcription] Successfully downloaded audio, starting OpenAI transcription');
+    console.log('[Transcription] Creating file with type:', mimeType);
+    const audioFile = new File([fileBuffer], `audio.${fileExtension}`, { type: mimeType });
 
+    console.log('[Transcription] Starting OpenAI transcription, file size:', fileBuffer.length);
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
       model: "whisper-1",
@@ -156,18 +183,33 @@ export async function processEpisode(episode: Episode): Promise<Partial<Episode>
 
     // Get the template info and host name if available
     let hostName = 'the host';
-    if (episode.templateId) {
-      const [template] = await db
+    try {
+      // First try to get from Default Template
+      const [defaultTemplate] = await db
         .select()
         .from(schema.templates)
-        .where(eq(schema.templates.id, episode.templateId));
+        .where(eq(schema.templates.name, "Default Template"));
 
-      if (template) {
-        hostName = template.hostName || hostName;
+      if (defaultTemplate && defaultTemplate.hostName) {
+        hostName = defaultTemplate.hostName;
+      } 
+      // If episode has a templateId, use that instead
+      else if (episode.templateId) {
+        const [template] = await db
+          .select()
+          .from(schema.templates)
+          .where(eq(schema.templates.id, episode.templateId));
+
+        if (template && template.hostName) {
+          hostName = template.hostName;
+        }
       }
+    } catch (error) {
+      console.warn('[ProcessEpisode] Could not retrieve host name:', error);
+      // Continue with default host name
     }
 
-    console.log('[ProcessEpisode] Starting parallel AI processing tasks');
+    console.log('[ProcessEpisode] Starting parallel AI processing tasks with host name:', hostName);
     const [titleSuggestions, showNotes, tags, summary] = await Promise.all([
       generateTitleSuggestions(transcript, hostName),
       generateShowNotes(transcript, hostName),
